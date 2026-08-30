@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LocalMark - 本地图片/PDF水印工具</title>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --panel-bg: #ffffff;
+    --border: #dfe2e6;
+    --text: #1f2328;
+    --text-muted: #6b7280;
+    --accent: #2563eb;
+    --accent-hover: #1d4ed8;
+    --danger: #dc2626;
+    --success: #16a34a;
+    --radius: 8px;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 14px;
+  }
+  header {
+    padding: 14px 20px;
+    background: var(--panel-bg);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  header h1 { font-size: 18px; margin: 0; }
+  header .tag {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .privacy-banner {
+    background: #ecfdf5;
+    border-bottom: 1px solid #a7f3d0;
+    color: #065f46;
+    font-size: 12.5px;
+    padding: 8px 20px;
+    text-align: center;
+  }
+  .layout {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 16px;
+    padding: 16px;
+    align-items: start;
+  }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+  .panel {
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-bottom: 14px;
+  }
+  .panel h2 {
+    font-size: 13px;
+    margin: 0 0 10px 0;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    font-weight: 600;
+  }
+  .field { margin-bottom: 12px; }
+  .field:last-child { margin-bottom: 0; }
+  .field label {
+    display: block;
+    font-size: 12.5px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+  .field .row-value {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12.5px;
+    color: var(--text-muted);
+  }
+  input[type="text"], input[type="number"], textarea, select {
+    width: 100%;
+    padding: 7px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 13.5px;
+    font-family: inherit;
+    background: #fff;
+    color: var(--text);
+  }
+  textarea { resize: vertical; min-height: 54px; }
+  input[type="range"] { width: 100%; accent-color: var(--accent); }
+  input[type="color"] {
+    width: 44px; height: 30px; padding: 0; border: 1px solid var(--border);
+    border-radius: 6px; background: none; cursor: pointer;
+  }
+  .color-row { display: flex; align-items: center; gap: 8px; }
+  .btn {
+    padding: 7px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--text);
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .btn:hover { background: #f3f4f6; }
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-danger { color: var(--danger); }
+  .btn-block { width: 100%; }
+  .btn-row { display: flex; gap: 8px; }
+  .btn-row .btn { flex: 1; }
+  .switch-row { display: flex; align-items: center; justify-content: space-between; }
+  .switch {
+    position: relative; width: 38px; height: 22px;
+    background: #ccc; border-radius: 11px; cursor: pointer;
+    transition: background .15s; flex-shrink: 0;
+  }
+  .switch.on { background: var(--accent); }
+  .switch::after {
+    content: ""; position: absolute; top: 2px; left: 2px;
+    width: 18px; height: 18px; background: #fff; border-radius: 50%;
+    transition: left .15s;
+  }
+  .switch.on::after { left: 18px; }
+
+  #dropzone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 22px 10px;
+    text-align: center;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+    font-size: 13px;
+  }
+  #dropzone.dragover { border-color: var(--accent); background: #eff6ff; }
+  #fileInput { display: none; }
+  #fileList {
+    margin-top: 10px;
+    max-height: 160px;
+    overflow-y: auto;
+  }
+  .file-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 5px 8px; border-radius: 6px; font-size: 12.5px;
+    cursor: pointer;
+  }
+  .file-item:hover { background: #f3f4f6; }
+  .file-item.active { background: #eff6ff; color: var(--accent); }
+  .file-item .fname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 240px; }
+  .file-item .fremove { color: var(--text-muted); padding: 0 4px; }
+  .file-item .fremove:hover { color: var(--danger); }
+
+  .grid9 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+    width: 120px;
+  }
+  .grid9 button {
+    aspect-ratio: 1;
+    border: 1px solid var(--border);
+    background: #fff;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .grid9 button.active { background: var(--accent); border-color: var(--accent); }
+  .grid9 button:hover:not(.active) { background: #f3f4f6; }
+
+  .mode-toggle {
+    display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden;
+  }
+  .mode-toggle button {
+    flex: 1; padding: 6px; border: none; background: #fff; cursor: pointer; font-size: 12.5px;
+    border-right: 1px solid var(--border);
+  }
+  .mode-toggle button:last-child { border-right: none; }
+  .mode-toggle button.active { background: var(--accent); color: #fff; }
+
+  #previewArea {
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    min-height: 500px;
+    display: flex;
+    flex-direction: column;
+  }
+  #previewCanvasWrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: repeating-conic-gradient(#eee 0% 25%, #fafafa 0% 50%) 50% / 20px 20px;
+    border-radius: 6px;
+    overflow: auto;
+    min-height: 420px;
+  }
+  #previewCanvas { max-width: 100%; max-height: 70vh; box-shadow: 0 1px 4px rgba(0,0,0,.15); }
+  #previewEmpty { color: var(--text-muted); text-align: center; padding: 40px; }
+  #previewPdfNote { font-size: 12px; color: var(--text-muted); margin-top: 8px; }
+  .export-bar {
+    display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; align-items: center;
+  }
+  .export-bar .btn { flex: 1; min-width: 140px; }
+  #progressWrap { margin-top: 10px; display: none; }
+  #progressBar { width: 100%; height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; }
+  #progressBar > div { height: 100%; background: var(--accent); width: 0%; transition: width .2s; }
+  #progressLabel { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+  .preset-list { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; max-height: 120px; overflow-y: auto; }
+  .preset-item { display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; border-radius: 6px; font-size: 12.5px; }
+  .preset-item:hover { background: #f3f4f6; }
+  .preset-item .pname { cursor: pointer; flex: 1; }
+  .preset-item .pactions { display: flex; gap: 6px; }
+  .preset-item .pactions span { cursor: pointer; color: var(--text-muted); font-size: 12px; }
+  .preset-item .pactions span:hover { color: var(--danger); }
+
+  .inline2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  footer {
+    text-align: center;
+    padding: 16px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🔒 LocalMark</h1>
+  <span class="tag">本地图片/PDF水印工具 — 纯浏览器处理，不上传任何文件</span>
+</header>
+<div class="privacy-banner">
+  ✅ 所有图片/PDF处理均在您的浏览器本地完成（Canvas API），不上传、不联网、不经过任何服务器 — 可断网使用
+</div>
+
+<div class="layout">
+  <!-- LEFT PANEL -->
+  <div id="leftPanel">
+
+    <div class="panel">
+      <h2>上传文件</h2>
+      <div id="dropzone">
+        拖拽图片 (JPG/PNG) 或 PDF 到此处<br>或点击选择文件
+      </div>
+      <input type="file" id="fileInput" multiple accept="image/jpeg,image/png,application/pdf">
+      <div id="fileList"></div>
+    </div>
+
+    <div class="panel">
+      <h2>水印类型</h2>
+      <div class="mode-toggle">
+        <button id="wmTypeText" class="active">文字水印</button>
+        <button id="wmTypeImage">图片/Logo水印</button>
+      </div>
+
+      <div id="textWmFields" style="margin-top:12px;">
+        <div class="field">
+          <label>水印文字内容（支持多行）</label>
+          <textarea id="wmText" placeholder="例如：&#10;某某公司&#10;内部资料 请勿外传">内部资料 CONFIDENTIAL</textarea>
+        </div>
+        <div class="btn-row">
+          <button class="btn" id="insertDate">插入日期</button>
+          <button class="btn" id="insertDateTime">插入日期+时间</button>
+        </div>
+      </div>
+
+      <div id="imageWmFields" style="margin-top:12px; display:none;">
+        <div class="field">
+          <label>上传水印图片/Logo（PNG建议带透明背景）</label>
+          <input type="file" id="wmImageInput" accept="image/png,image/jpeg">
+          <div id="wmImagePreviewWrap" style="margin-top:8px; display:none;">
+            <img id="wmImagePreview" style="max-width:100%; max-height:80px; border:1px solid var(--border); border-radius:6px;">
+            <button class="btn btn-danger" id="wmImageClear" style="margin-top:6px;">移除水印图片</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="textStylePanel">
+      <h2>文字样式</h2>
+      <div class="field color-row">
+        <div style="flex:1;">
+          <label>字体颜色</label>
+        </div>
+        <input type="color" id="wmColor" value="#ff0000">
+      </div>
+      <div class="field">
+        <div class="row-value"><label>字体大小</label><span id="fontSizeVal">36px</span></div>
+        <input type="range" id="fontSize" min="8" max="200" value="36">
+      </div>
+      <div class="field">
+        <div class="row-value"><label>透明度</label><span id="opacityVal">50%</span></div>
+        <input type="range" id="opacity" min="0" max="100" value="50">
+      </div>
+      <div class="field switch-row">
+        <label style="margin:0;">描边/阴影（提升可读性）</label>
+        <div class="switch" id="strokeSwitch"></div>
+      </div>
+      <div class="field">
+        <label>混合模式</label>
+        <select id="blendMode">
+          <option value="source-over">正常</option>
+          <option value="multiply">正片叠底</option>
+          <option value="overlay">叠加</option>
+          <option value="screen">滤色</option>
+          <option value="difference">差值</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>布局与定位</h2>
+      <div class="field">
+        <label>定位模式</label>
+        <div class="mode-toggle">
+          <button id="layoutTile" class="active">平铺</button>
+          <button id="layoutSingle">单点（九宫格）</button>
+        </div>
+      </div>
+
+      <div id="tileFields">
+        <div class="field">
+          <div class="row-value"><label>旋转角度</label><span id="angleVal">-30°</span></div>
+          <input type="range" id="angle" min="-90" max="90" value="-30">
+        </div>
+        <div class="field">
+          <div class="row-value"><label>平铺密度（间距）</label><span id="densityVal">220px</span></div>
+          <input type="range" id="density" min="80" max="500" value="220">
+        </div>
+      </div>
+
+      <div id="singleFields" style="display:none;">
+        <div class="field">
+          <label>九宫格位置</label>
+          <div class="grid9" id="grid9">
+            <button data-pos="tl"></button><button data-pos="tc"></button><button data-pos="tr"></button>
+            <button data-pos="cl"></button><button data-pos="cc" class="active"></button><button data-pos="cr"></button>
+            <button data-pos="bl"></button><button data-pos="bc"></button><button data-pos="br"></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="row-value"><label>边距留白</label><span id="marginVal">24px</span></div>
+        <input type="range" id="margin" min="0" max="150" value="24">
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>预设模板</h2>
+      <div class="inline2">
+        <input type="text" id="presetName" placeholder="预设名称">
+        <button class="btn" id="savePreset">保存当前设置</button>
+      </div>
+      <div class="preset-list" id="presetList"></div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div id="previewArea">
+    <div id="previewCanvasWrap">
+      <div id="previewEmpty">请先在左侧上传图片或 PDF</div>
+      <canvas id="previewCanvas" style="display:none;"></canvas>
+    </div>
+    <div id="previewPdfNote"></div>
+
+    <div class="export-bar">
+      <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--text-muted);">
+        <input type="checkbox" id="jpgQualityToggle"> JPG导出质量
+        <select id="jpgQuality" style="width:80px;">
+          <option value="1">100%</option>
+          <option value="0.92" selected>92%</option>
+          <option value="0.8">80%</option>
+          <option value="0.6">60%</option>
+        </select>
+      </label>
+      <button class="btn btn-primary" id="downloadSingle">下载当前文件</button>
+      <button class="btn btn-primary" id="downloadAllZip">批量导出 ZIP（<span id="fileCount">0</span> 个文件）</button>
+    </div>
+    <div id="progressWrap">
+      <div id="progressBar"><div id="progressBarFill"></div></div>
+      <div id="progressLabel"></div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  LocalMark — 所有文件处理均在您的浏览器本地内存中完成，不上传、不存储、不经过任何服务器/API，断网也可使用。仅使用 localStorage 保存您的水印参数预设（不含文件内容）。
+</footer>
+
+<script src="vendor/pdf-lib.min.js"></script>
+<script src="vendor/jszip.min.js"></script>
+<script>
+(function() {
+  "use strict";
+
+  // ---------- State ----------
+  const state = {
+    files: [],          // {id, file, type:'image'|'pdf', imgEl?, pdfDoc?(ArrayBuffer), pageCount?}
+    activeIndex: -1,
+    wm: {
+      type: 'text',      // 'text' | 'image'
+      text: '内部资料 CONFIDENTIAL',
+      color: '#ff0000',
+      fontSize: 36,
+      opacity: 50,
+      stroke: false,
+      blend: 'source-over',
+      layout: 'tile',     // 'tile' | 'single'
+      angle: -30,
+      density: 220,
+      margin: 24,
+      gridPos: 'cc',
+      wmImageDataUrl: null
+    }
+  };
+
+  let wmImageEl = null; // loaded Image object for image watermark
+
+  // ---------- Utility ----------
+  function $(id) { return document.getElementById(id); }
+  function uid() { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+  function formatDate(d) {
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  }
+  function formatDateTime(d) {
+    return `${formatDate(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  // ---------- Persistence (settings only, not files) ----------
+  const LS_KEY_SETTINGS = 'localmark_last_settings_v1';
+  const LS_KEY_PRESETS = 'localmark_presets_v1';
+
+  function saveLastSettings() {
+    try {
+      const toSave = Object.assign({}, state.wm);
+      // don't persist a huge data URL for "last settings" auto-restore to keep it light
+      localStorage.setItem(LS_KEY_SETTINGS, JSON.stringify(toSave));
+    } catch (e) { /* ignore quota errors */ }
+  }
+
+  function loadLastSettings() {
+    try {
+      const raw = localStorage.getItem(LS_KEY_SETTINGS);
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      Object.assign(state.wm, saved);
+    } catch (e) { /* ignore */ }
+  }
+
+  function getPresets() {
+    try {
+      const raw = localStorage.getItem(LS_KEY_PRESETS);
+      return raw ? JSON.parse(raw) : {};
+    } catch (e) { return {}; }
+  }
+  function setPresets(obj) {
+    try { localStorage.setItem(LS_KEY_PRESETS, JSON.stringify(obj)); } catch (e) {}
+  }
+
+  // ---------- UI sync ----------
+  function syncUiFromState() {
+    const w = state.wm;
+    $('wmText').value = w.text;
+    $('wmColor').value = w.color;
+    $('fontSize').value = w.fontSize;
+    $('fontSizeVal').textContent = w.fontSize + 'px';
+    $('opacity').value = w.opacity;
+    $('opacityVal').textContent = w.opacity + '%';
+    $('strokeSwitch').classList.toggle('on', !!w.stroke);
+    $('blendMode').value = w.blend;
+    $('angle').value = w.angle;
+    $('angleVal').textContent = w.angle + '°';
+    $('density').value = w.density;
+    $('densityVal').textContent = w.density + 'px';
+    $('margin').value = w.margin;
+    $('marginVal').textContent = w.margin + 'px';
+
+    $('wmTypeText').classList.toggle('active', w.type === 'text');
+    $('wmTypeImage').classList.toggle('active', w.type === 'image');
+    $('textWmFields').style.display = w.type === 'text' ? '' : 'none';
+    $('imageWmFields').style.display = w.type === 'image' ? '' : 'none';
+    $('textStylePanel').style.display = w.type === 'text' ? '' : 'none';
+
+    $('layoutTile').classList.toggle('active', w.layout === 'tile');
+    $('layoutSingle').classList.toggle('active', w.layout === 'single');
+    $('tileFields').style.display = w.layout === 'tile' ? '' : 'none';
+    $('singleFields').style.display = w.layout === 'single' ? '' : 'none';
+
+    document.querySelectorAll('#grid9 button').forEach(b => {
+      b.classList.toggle('active', b.dataset.pos === w.gridPos);
+    });
+
+    if (w.wmImageDataUrl) {
+      $('wmImagePreview').src = w.wmImageDataUrl;
+      $('wmImagePreviewWrap').style.display = '';
+      loadWmImage(w.wmImageDataUrl);
+    }
+  }
+
+  function loadWmImage(dataUrl) {
+    const img = new Image();
+    img.onload = () => { wmImageEl = img; renderPreview(); };
+    img.src = dataUrl;
+  }
+
+  // ---------- File handling ----------
+  function handleFiles(fileListArr) {
+    const arr = Array.from(fileListArr);
+    let added = 0;
+    arr.forEach(file => {
+      const isImg = file.type === 'image/jpeg' || file.type === 'image/png';
+      const isPdf = file.type === 'application/pdf';
+      if (!isImg && !isPdf) return;
+      const entry = { id: uid(), file, type: isImg ? 'image' : 'pdf', name: file.name };
+      state.files.push(entry);
+      added++;
+      if (isImg) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            entry.imgEl = img;
+            renderFileList();
+            if (state.activeIndex === -1) setActiveFile(state.files.indexOf(entry));
+            else if (state.files[state.activeIndex] === entry) renderPreview();
+          };
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      } else {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          entry.arrayBuffer = e.target.result;
+          try {
+            const pdfDoc = await PDFLib.PDFDocument.load(entry.arrayBuffer.slice(0), { updateMetadata: false });
+            entry.pageCount = pdfDoc.getPageCount();
+          } catch (err) {
+            entry.pageCount = '?';
+          }
+          renderFileList();
+          if (state.activeIndex === -1) setActiveFile(state.files.indexOf(entry));
+          else if (state.files[state.activeIndex] === entry) renderPreview();
+        };
+        reader.readAsArrayBuffer(file);
+      }
+    });
+    if (added > 0) renderFileList();
+  }
+
+  function renderFileList() {
+    const wrap = $('fileList');
+    wrap.innerHTML = '';
+    state.files.forEach((f, i) => {
+      const div = document.createElement('div');
+      div.className = 'file-item' + (i === state.activeIndex ? ' active' : '');
+      const label = f.type === 'pdf' ? `📄 ${f.name}` : `🖼️ ${f.name}`;
+      div.innerHTML = `<span class="fname">${label}</span><span class="fremove" data-i="${i}">✕</span>`;
+      div.addEventListener('click', (e) => {
+        if (e.target.classList.contains('fremove')) return;
+        setActiveFile(i);
+      });
+      div.querySelector('.fremove').addEventListener('click', (e) => {
+        e.stopPropagation();
+        removeFile(i);
+      });
+      wrap.appendChild(div);
+    });
+    $('fileCount').textContent = state.files.length;
+  }
+
+  function removeFile(i) {
+    state.files.splice(i, 1);
+    if (state.activeIndex === i) {
+      state.activeIndex = state.files.length ? Math.min(i, state.files.length - 1) : -1;
+    } else if (state.activeIndex > i) {
+      state.activeIndex--;
+    }
+    renderFileList();
+    renderPreview();
+  }
+
+  function setActiveFile(i) {
+    state.activeIndex = i;
+    renderFileList();
+    renderPreview();
+  }
+
+  // ---------- Watermark drawing (Canvas) ----------
+  function wmColorWithAlpha(hex, opacityPct) {
+    const a = Math.max(0, Math.min(100, opacityPct)) / 100;
+    const r = parseInt(hex.slice(1,3), 16);
+    const g = parseInt(hex.slice(3,5), 16);
+    const b = parseInt(hex.slice(5,7), 16);
+    return `rgba(${r},${g},${b},${a})`;
+  }
+
+  function drawTextBlock(ctx, lines, x, y, fontSize, color, stroke) {
+    ctx.font = `bold ${fontSize}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = color;
+    if (stroke) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+      ctx.lineWidth = Math.max(1, fontSize / 14);
+    }
+    const lineHeight = fontSize * 1.25;
+    const totalH = lineHeight * lines.length;
+    const startY = y - totalH / 2 + lineHeight / 2;
+    lines.forEach((line, idx) => {
+      const ly = startY + idx * lineHeight;
+      if (stroke) ctx.strokeText(line, x, ly);
+      ctx.fillText(line, x, ly);
+    });
+  }
+
+  function measureTextBlockSize(ctx, lines, fontSize) {
+    ctx.font = `bold ${fontSize}px sans-serif`;
+    let maxW = 0;
+    lines.forEach(l => { maxW = Math.max(maxW, ctx.measureText(l).width); });
+    const lineHeight = fontSize * 1.25;
+    return { w: maxW, h: lineHeight * lines.length };
+  }
+
+  function applyWatermark(ctx, canvasW, canvasH) {
+    const w = state.wm;
+    ctx.save();
+    ctx.globalCompositeOperation = w.blend;
+
+    if (w.type === 'text') {
+      const lines = w.text.split('\n').filter(l => l.length > 0);
+      if (lines.length === 0) { ctx.restore(); return; }
+      const color = wmColorWithAlpha(w.color, w.opacity);
+
+      if (w.layout === 'tile') {
+        const { w: blockW, h: blockH } = measureTextBlockSize(ctx, lines, w.fontSize);
+        const stepX = blockW + w.density;
+        const stepY = blockH + w.density;
+        const angleRad = w.angle * Math.PI / 180;
+        const diag = Math.sqrt(canvasW * canvasW + canvasH * canvasH);
+        const cols = Math.ceil(diag / stepX) + 2;
+        const rows = Math.ceil(diag / stepY) + 2;
+        ctx.translate(canvasW / 2, canvasH / 2);
+        ctx.rotate(angleRad);
+        for (let r = -rows; r <= rows; r++) {
+          for (let c = -cols; c <= cols; c++) {
+            const x = c * stepX;
+            const y = r * stepY;
+            drawTextBlock(ctx, lines, x, y, w.fontSize, color, w.stroke);
+          }
+        }
+      } else {
+        const { w: blockW, h: blockH } = measureTextBlockSize(ctx, lines, w.fontSize);
+        const pos = gridPosToXY(w.gridPos, canvasW, canvasH, blockW, blockH, w.margin);
+        ctx.translate(pos.x, pos.y);
+        ctx.rotate(w.angle * Math.PI / 180);
+        drawTextBlock(ctx, lines, 0, 0, w.fontSize, color, w.stroke);
+      }
+    } else if (w.type === 'image' && wmImageEl) {
+      ctx.globalAlpha = w.opacity / 100;
+      const naturalRatio = wmImageEl.naturalWidth / wmImageEl.naturalHeight;
+      const baseSize = w.fontSize * 3; // reuse fontSize slider as scale control for image wm
+      const imgW = baseSize * naturalRatio;
+      const imgH = baseSize;
+
+      if (w.layout === 'tile') {
+        const stepX = imgW + w.density;
+        const stepY = imgH + w.density;
+        const angleRad = w.angle * Math.PI / 180;
+        const diag = Math.sqrt(canvasW * canvasW + canvasH * canvasH);
+        const cols = Math.ceil(diag / stepX) + 2;
+        const rows = Math.ceil(diag / stepY) + 2;
+        ctx.translate(canvasW / 2, canvasH / 2);
+        ctx.rotate(angleRad);
+        for (let r = -rows; r <= rows; r++) {
+          for (let c = -cols; c <= cols; c++) {
+            const x = c * stepX;
+            const y = r * stepY;
+            ctx.drawImage(wmImageEl, x - imgW/2, y - imgH/2, imgW, imgH);
+          }
+        }
+      } else {
+        const pos = gridPosToXY(w.gridPos, canvasW, canvasH, imgW, imgH, w.margin);
+        ctx.translate(pos.x, pos.y);
+        ctx.rotate(w.angle * Math.PI / 180);
+        ctx.drawImage(wmImageEl, -imgW/2, -imgH/2, imgW, imgH);
+      }
+    }
+    ctx.restore();
+  }
+
+  function gridPosToXY(pos, canvasW, canvasH, blockW, blockH, margin) {
+    const halfW = blockW / 2 + margin;
+    const halfH = blockH / 2 + margin;
+    let x, y;
+    switch (pos) {
+      case 'tl': x = halfW; y = halfH; break;
+      case 'tc': x = canvasW / 2; y = halfH; break;
+      case 'tr': x = canvasW - halfW; y = halfH; break;
+      case 'cl': x = halfW; y = canvasH / 2; break;
+      case 'cc': x = canvasW / 2; y = canvasH / 2; break;
+      case 'cr': x = canvasW - halfW; y = canvasH / 2; break;
+      case 'bl': x = halfW; y = canvasH - halfH; break;
+      case 'bc': x = canvasW / 2; y = canvasH - halfH; break;
+      case 'br': x = canvasW - halfW; y = canvasH - halfH; break;
+      default: x = canvasW / 2; y = canvasH / 2;
+    }
+    return { x, y };
+  }
+
+  // ---------- Preview ----------
+  let pdfPreviewObjUrl = null;
+
+  function renderPreview() {
+    const canvas = $('previewCanvas');
+    const empty = $('previewEmpty');
+    const pdfNote = $('previewPdfNote');
+    pdfNote.textContent = '';
+
+    if (state.activeIndex === -1 || !state.files[state.activeIndex]) {
+      canvas.style.display = 'none';
+      empty.style.display = '';
+      return;
+    }
+    const entry = state.files[state.activeIndex];
+
+    if (entry.type === 'image') {
+      if (!entry.imgEl) { empty.style.display = ''; canvas.style.display = 'none'; return; }
+      empty.style.display = 'none';
+      canvas.style.display = '';
+      const img = entry.imgEl;
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
+      applyWatermark(ctx, canvas.width, canvas.height);
+    } else if (entry.type === 'pdf') {
+      empty.style.display = 'none';
+      canvas.style.display = 'none';
+      pdfNote.textContent = `📄 PDF 文件（共 ${entry.pageCount} 页）— 水印将应用到每一页。预览显示以图片文件为准，点击"下载当前文件"直接生成加水印后的 PDF。`;
+      // Draw a lightweight placeholder canvas showing the watermark pattern as a demo
+      canvas.style.display = '';
+      canvas.width = 600;
+      canvas.height = 800;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = '#e5e7eb';
+      ctx.strokeRect(0.5, 0.5, canvas.width - 1, canvas.height - 1);
+      ctx.fillStyle = '#9ca3af';
+      ctx.font = '14px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('PDF 页面预览（水印效果示意）', canvas.width / 2, 30);
+      applyWatermark(ctx, canvas.width, canvas.height);
+    }
+  }
+
+  // ---------- Export: single image ----------
+  function canvasToBlob(canvas, mime, quality) {
+    return new Promise(resolve => canvas.toBlob(resolve, mime, quality));
+  }
+
+  async function exportImageEntry(entry) {
+    const img = entry.imgEl;
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    applyWatermark(ctx, canvas.width, canvas.height);
+    const isJpg = entry.file.type === 'image/jpeg';
+    const mime = isJpg ? 'image/jpeg' : 'image/png';
+    const useQuality = $('jpgQualityToggle').checked;
+    const quality = isJpg && useQuality ? parseFloat($('jpgQuality').value) : undefined;
+    const blob = await canvasToBlob(canvas, mime, quality);
+    return blob;
+  }
+
+  // ---------- Export: PDF (draw watermark onto each page via an offscreen canvas -> embed as image) ----------
+  async function exportPdfEntry(entry) {
+    const { PDFDocument, degrees } = PDFLib;
+    const srcBytes = entry.arrayBuffer.slice(0);
+    const pdfDoc = await PDFDocument.load(srcBytes);
+    const pages = pdfDoc.getPages();
+
+    for (const page of pages) {
+      const { width, height } = page.getSize();
+      // Render watermark pattern onto an offscreen transparent canvas at page pixel size
+      const scale = 2; // improve sharpness
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(width * scale);
+      canvas.height = Math.round(height * scale);
+      const ctx = canvas.getContext('2d');
+      ctx.scale(scale, scale);
+      applyWatermark(ctx, width, height);
+
+      const pngDataUrl = canvas.toDataURL('image/png');
+      const pngBytes = dataUrlToUint8(pngDataUrl);
+      const pngImage = await pdfDoc.embedPng(pngBytes);
+      page.drawImage(pngImage, { x: 0, y: 0, width, height });
+    }
+
+    const outBytes = await pdfDoc.save();
+    return new Blob([outBytes], { type: 'application/pdf' });
+  }
+
+  function dataUrlToUint8(dataUrl) {
+    const base64 = dataUrl.split(',')[1];
+    const bin = atob(base64);
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return arr;
+  }
+
+  function triggerDownload(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+
+  function watermarkedFilename(name) {
+    const dot = name.lastIndexOf('.');
+    if (dot === -1) return name + '_watermarked';
+    return name.slice(0, dot) + '_watermarked' + name.slice(dot);
+  }
+
+  async function downloadSingle() {
+    if (state.activeIndex === -1) return;
+    const entry = state.files[state.activeIndex];
+    if (entry.type === 'image' && !entry.imgEl) return;
+    if (entry.type === 'pdf' && !entry.arrayBuffer) return;
+    const blob = entry.type === 'image' ? await exportImageEntry(entry) : await exportPdfEntry(entry);
+    triggerDownload(blob, watermarkedFilename(entry.name));
+  }
+
+  async function downloadAllZip() {
+    if (state.files.length === 0) return;
+    const ready = state.files.filter(f => (f.type === 'image' && f.imgEl) || (f.type === 'pdf' && f.arrayBuffer));
+    if (ready.length === 0) return;
+
+    $('progressWrap').style.display = '';
+    const zip = new JSZip();
+    let done = 0;
+    for (const entry of ready) {
+      $('progressLabel').textContent = `处理中 ${done + 1}/${ready.length}: ${entry.name}`;
+      let blob;
+      try {
+        blob = entry.type === 'image' ? await exportImageEntry(entry) : await exportPdfEntry(entry);
+        zip.file(watermarkedFilename(entry.name), blob);
+      } catch (err) {
+        console.error('导出失败:', entry.name, err);
+      }
+      done++;
+      $('progressBarFill').style.width = Math.round(done / ready.length * 100) + '%';
+      $('progressLabel').textContent = `${done}/${ready.length} 完成`;
+      await new Promise(r => setTimeout(r, 0)); // yield to UI
+    }
+    const zipBlob = await zip.generateAsync({ type: 'blob' }, (meta) => {
+      $('progressLabel').textContent = `打包 ZIP... ${Math.round(meta.percent)}%`;
+    });
+    triggerDownload(zipBlob, `LocalMark_导出_${formatDate(new Date())}.zip`);
+    setTimeout(() => { $('progressWrap').style.display = 'none'; }, 1500);
+  }
+
+  // ---------- Presets ----------
+  function renderPresetList() {
+    const presets = getPresets();
+    const wrap = $('presetList');
+    wrap.innerHTML = '';
+    const names = Object.keys(presets);
+    if (names.length === 0) {
+      wrap.innerHTML = '<div style="color:var(--text-muted); font-size:12px;">暂无保存的预设</div>';
+      return;
+    }
+    names.forEach(name => {
+      const div = document.createElement('div');
+      div.className = 'preset-item';
+      div.innerHTML = `<span class="pname">${name}</span><span class="pactions"><span data-act="del">删除</span></span>`;
+      div.querySelector('.pname').addEventListener('click', () => {
+        Object.assign(state.wm, presets[name]);
+        syncUiFromState();
+        renderPreview();
+        saveLastSettings();
+      });
+      div.querySelector('[data-act="del"]').addEventListener('click', (e) => {
+        e.stopPropagation();
+        const all = getPresets();
+        delete all[name];
+        setPresets(all);
+        renderPresetList();
+      });
+      wrap.appendChild(div);
+    });
+  }
+
+  // ---------- Event bindings ----------
+  function bindEvents() {
+    const dz = $('dropzone');
+    dz.addEventListener('click', () => $('fileInput').click());
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+    dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+    dz.addEventListener('drop', e => {
+      e.preventDefault();
+      dz.classList.remove('dragover');
+      handleFiles(e.dataTransfer.files);
+    });
+    $('fileInput').addEventListener('change', e => {
+      handleFiles(e.target.files);
+      e.target.value = '';
+    });
+
+    $('wmTypeText').addEventListener('click', () => { state.wm.type = 'text'; syncUiFromState(); renderPreview(); saveLastSettings(); });
+    $('wmTypeImage').addEventListener('click', () => { state.wm.type = 'image'; syncUiFromState(); renderPreview(); saveLastSettings(); });
+
+    $('wmText').addEventListener('input', e => { state.wm.text = e.target.value; renderPreview(); saveLastSettings(); });
+    $('insertDate').addEventListener('click', () => {
+      $('wmText').value += ($('wmText').value ? '\n' : '') + formatDate(new Date());
+      state.wm.text = $('wmText').value;
+      renderPreview(); saveLastSettings();
+    });
+    $('insertDateTime').addEventListener('click', () => {
+      $('wmText').value += ($('wmText').value ? '\n' : '') + formatDateTime(new Date());
+      state.wm.text = $('wmText').value;
+      renderPreview(); saveLastSettings();
+    });
+
+    $('wmImageInput').addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        state.wm.wmImageDataUrl = ev.target.result;
+        $('wmImagePreview').src = ev.target.result;
+        $('wmImagePreviewWrap').style.display = '';
+        loadWmImage(ev.target.result);
+        saveLastSettings();
+      };
+      reader.readAsDataURL(file);
+    });
+    $('wmImageClear').addEventListener('click', () => {
+      state.wm.wmImageDataUrl = null;
+      wmImageEl = null;
+      $('wmImagePreviewWrap').style.display = 'none';
+      $('wmImageInput').value = '';
+      renderPreview(); saveLastSettings();
+    });
+
+    $('wmColor').addEventListener('input', e => { state.wm.color = e.target.value; renderPreview(); saveLastSettings(); });
+    $('fontSize').addEventListener('input', e => {
+      state.wm.fontSize = parseInt(e.target.value, 10);
+      $('fontSizeVal').textContent = state.wm.fontSize + 'px';
+      renderPreview(); saveLastSettings();
+    });
+    $('opacity').addEventListener('input', e => {
+      state.wm.opacity = parseInt(e.target.value, 10);
+      $('opacityVal').textContent = state.wm.opacity + '%';
+      renderPreview(); saveLastSettings();
+    });
+    $('strokeSwitch').addEventListener('click', () => {
+      state.wm.stroke = !state.wm.stroke;
+      $('strokeSwitch').classList.toggle('on', state.wm.stroke);
+      renderPreview(); saveLastSettings();
+    });
+    $('blendMode').addEventListener('change', e => { state.wm.blend = e.target.value; renderPreview(); saveLastSettings(); });
+
+    $('layoutTile').addEventListener('click', () => { state.wm.layout = 'tile'; syncUiFromState(); renderPreview(); saveLastSettings(); });
+    $('layoutSingle').addEventListener('click', () => { state.wm.layout = 'single'; syncUiFromState(); renderPreview(); saveLastSettings(); });
+
+    $('angle').addEventListener('input', e => {
+      state.wm.angle = parseInt(e.target.value, 10);
+      $('angleVal').textContent = state.wm.angle + '°';
+      renderPreview(); saveLastSettings();
+    });
+    $('density').addEventListener('input', e => {
+      state.wm.density = parseInt(e.target.value, 10);
+      $('densityVal').textContent = state.wm.density + 'px';
+      renderPreview(); saveLastSettings();
+    });
+    $('margin').addEventListener('input', e => {
+      state.wm.margin = parseInt(e.target.value, 10);
+      $('marginVal').textContent = state.wm.margin + 'px';
+      renderPreview(); saveLastSettings();
+    });
+
+    document.querySelectorAll('#grid9 button').forEach(b => {
+      b.addEventListener('click', () => {
+        state.wm.gridPos = b.dataset.pos;
+        document.querySelectorAll('#grid9 button').forEach(x => x.classList.remove('active'));
+        b.classList.add('active');
+        renderPreview(); saveLastSettings();
+      });
+    });
+
+    $('savePreset').addEventListener('click', () => {
+      const name = $('presetName').value.trim();
+      if (!name) { alert('请输入预设名称'); return; }
+      const presets = getPresets();
+      presets[name] = Object.assign({}, state.wm);
+      setPresets(presets);
+      $('presetName').value = '';
+      renderPresetList();
+    });
+
+    $('downloadSingle').addEventListener('click', () => {
+      downloadSingle().catch(err => { console.error(err); alert('导出失败：' + err.message); });
+    });
+    $('downloadAllZip').addEventListener('click', () => {
+      downloadAllZip().catch(err => { console.error(err); alert('批量导出失败：' + err.message); });
+    });
+  }
+
+  // ---------- Init ----------
+  function init() {
+    loadLastSettings();
+    syncUiFromState();
+    bindEvents();
+    renderPresetList();
+    renderPreview();
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+})();
+</script>
+</body>
+</html>
