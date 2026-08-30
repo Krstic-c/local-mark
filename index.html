@@ -336,6 +336,12 @@
     color: var(--gray-500);
     font-family: var(--font-mono);
   }
+  footer .credit {
+    margin-top: 8px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  footer .credit .accent { color: var(--red); }
 </style>
 </head>
 <body>
@@ -516,6 +522,7 @@
 
 <footer>
   LocalMark — 所有文件处理均在您的浏览器本地内存中完成，不上传、不存储、不经过任何服务器/API，断网也可使用。仅使用 localStorage 保存您的水印参数预设（不含文件内容）。
+  <div class="credit">Design by <span class="accent">Kristic</span></div>
 </footer>
 
 <script src="vendor/pdf-lib.min.js"></script>
