@@ -572,10 +572,10 @@
 
   function saveLastSettings() {
     try {
-      const toSave = Object.assign({}, state.wm);
       // don't persist a huge data URL for "last settings" auto-restore to keep it light
+      const { wmImageDataUrl, ...toSave } = state.wm;
       localStorage.setItem(LS_KEY_SETTINGS, JSON.stringify(toSave));
-    } catch (e) { /* ignore quota errors */ }
+    } catch (e) { console.warn('保存"上次参数"到 localStorage 失败:', e); }
   }
 
   function loadLastSettings() {
@@ -584,17 +584,17 @@
       if (!raw) return;
       const saved = JSON.parse(raw);
       Object.assign(state.wm, saved);
-    } catch (e) { /* ignore */ }
+    } catch (e) { console.warn('读取"上次参数"失败:', e); }
   }
 
   function getPresets() {
     try {
       const raw = localStorage.getItem(LS_KEY_PRESETS);
       return raw ? JSON.parse(raw) : {};
-    } catch (e) { return {}; }
+    } catch (e) { console.warn('读取预设列表失败:', e); return {}; }
   }
   function setPresets(obj) {
-    try { localStorage.setItem(LS_KEY_PRESETS, JSON.stringify(obj)); } catch (e) {}
+    try { localStorage.setItem(LS_KEY_PRESETS, JSON.stringify(obj)); } catch (e) { console.warn('保存预设列表失败:', e); }
   }
 
   // ---------- Tiling density: keep spacing proportional to the watermark's own size ----------
@@ -712,7 +712,8 @@
       const div = document.createElement('div');
       div.className = 'file-item' + (i === state.activeIndex ? ' active' : '');
       const tag = f.type === 'pdf' ? 'PDF' : 'IMG';
-      div.innerHTML = `<span class="ftag">${tag}</span><span class="fname">${f.name}</span><span class="fremove" data-i="${i}">✕</span>`;
+      div.innerHTML = `<span class="ftag">${tag}</span><span class="fname"></span><span class="fremove" data-i="${i}">✕</span>`;
+      div.querySelector('.fname').textContent = f.name;
       div.addEventListener('click', (e) => {
         if (e.target.classList.contains('fremove')) return;
         setActiveFile(i);
@@ -802,23 +803,11 @@
       const lines = w.text.split('\n').filter(l => l.length > 0);
       if (lines.length === 0) { ctx.restore(); return; }
       const color = wmColorWithAlpha(w.color, w.opacity);
+      const { w: blockW, h: blockH } = measureTextBlockSize(ctx, lines, w.fontSize);
 
-      if (w.layout === 'tile') {
-        const { w: blockW, h: blockH } = measureTextBlockSize(ctx, lines, w.fontSize);
-        const stepX = blockW + w.density;
-        const stepY = blockH + w.density;
-        ctx.translate(canvasW / 2, canvasH / 2);
-        ctx.rotate(w.angle * Math.PI / 180);
-        forEachTileCell(canvasW, canvasH, stepX, stepY, (x, y) => {
-          drawTextBlock(ctx, lines, x, y, w.fontSize, color, w.stroke);
-        });
-      } else {
-        const { w: blockW, h: blockH } = measureTextBlockSize(ctx, lines, w.fontSize);
-        const pos = gridPosToXY(w.gridPos, canvasW, canvasH, blockW, blockH, w.margin);
-        ctx.translate(pos.x, pos.y);
-        ctx.rotate(w.angle * Math.PI / 180);
-        drawTextBlock(ctx, lines, 0, 0, w.fontSize, color, w.stroke);
-      }
+      placeWatermarkInstances(ctx, canvasW, canvasH, blockW, blockH, w, (x, y) => {
+        drawTextBlock(ctx, lines, x, y, w.fontSize, color, w.stroke);
+      });
     } else if (w.type === 'image' && wmImageEl) {
       ctx.globalAlpha = w.opacity / 100;
       const naturalRatio = wmImageEl.naturalWidth / wmImageEl.naturalHeight;
@@ -826,22 +815,31 @@
       const imgW = baseSize * naturalRatio;
       const imgH = baseSize;
 
-      if (w.layout === 'tile') {
-        const stepX = imgW + w.density;
-        const stepY = imgH + w.density;
-        ctx.translate(canvasW / 2, canvasH / 2);
-        ctx.rotate(w.angle * Math.PI / 180);
-        forEachTileCell(canvasW, canvasH, stepX, stepY, (x, y) => {
-          ctx.drawImage(wmImageEl, x - imgW/2, y - imgH/2, imgW, imgH);
-        });
-      } else {
-        const pos = gridPosToXY(w.gridPos, canvasW, canvasH, imgW, imgH, w.margin);
-        ctx.translate(pos.x, pos.y);
-        ctx.rotate(w.angle * Math.PI / 180);
-        ctx.drawImage(wmImageEl, -imgW/2, -imgH/2, imgW, imgH);
-      }
+      placeWatermarkInstances(ctx, canvasW, canvasH, imgW, imgH, w, (x, y) => {
+        ctx.drawImage(wmImageEl, x - imgW/2, y - imgH/2, imgW, imgH);
+      });
     }
     ctx.restore();
+  }
+
+  // Shared tile/single positioning for both text and image watermarks: in
+  // "tile" layout it lays out repeating cells across the canvas, in single
+  // layout it places one instance at the chosen grid position. `drawAt(x, y)`
+  // draws one watermark instance centered at (x, y) in the already-rotated
+  // local coordinate space.
+  function placeWatermarkInstances(ctx, canvasW, canvasH, blockW, blockH, w, drawAt) {
+    if (w.layout === 'tile') {
+      const stepX = blockW + w.density;
+      const stepY = blockH + w.density;
+      ctx.translate(canvasW / 2, canvasH / 2);
+      ctx.rotate(w.angle * Math.PI / 180);
+      forEachTileCell(canvasW, canvasH, stepX, stepY, drawAt);
+    } else {
+      const pos = gridPosToXY(w.gridPos, canvasW, canvasH, blockW, blockH, w.margin);
+      ctx.translate(pos.x, pos.y);
+      ctx.rotate(w.angle * Math.PI / 180);
+      drawAt(0, 0);
+    }
   }
 
   function gridPosToXY(pos, canvasW, canvasH, blockW, blockH, margin) {
@@ -948,22 +946,14 @@
       ctx.scale(scale, scale);
       applyWatermark(ctx, width, height);
 
-      const pngDataUrl = canvas.toDataURL('image/png');
-      const pngBytes = dataUrlToUint8(pngDataUrl);
+      const pngBlob = await canvasToBlob(canvas, 'image/png');
+      const pngBytes = new Uint8Array(await pngBlob.arrayBuffer());
       const pngImage = await pdfDoc.embedPng(pngBytes);
       page.drawImage(pngImage, { x: 0, y: 0, width, height });
     }
 
     const outBytes = await pdfDoc.save();
     return new Blob([outBytes], { type: 'application/pdf' });
-  }
-
-  function dataUrlToUint8(dataUrl) {
-    const base64 = dataUrl.split(',')[1];
-    const bin = atob(base64);
-    const arr = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-    return arr;
   }
 
   function triggerDownload(blob, filename) {
@@ -1034,7 +1024,8 @@
     names.forEach(name => {
       const div = document.createElement('div');
       div.className = 'preset-item';
-      div.innerHTML = `<span class="pname">${name}</span><span class="pactions"><span data-act="del">删除</span></span>`;
+      div.innerHTML = `<span class="pname"></span><span class="pactions"><span data-act="del">删除</span></span>`;
+      div.querySelector('.pname').textContent = name;
       div.querySelector('.pname').addEventListener('click', () => {
         Object.assign(state.wm, presets[name]);
         syncUiFromState();
