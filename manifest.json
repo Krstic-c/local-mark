@@ -1,0 +1,14 @@
+{
+  "name": "LocalMark - 本地图片/PDF水印工具",
+  "short_name": "LocalMark",
+  "description": "本地图片/PDF 水印工具，零上传、可断网使用，所有处理均在浏览器本地内存中完成。",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f5f7",
+  "theme_color": "#f5f5f7",
+  "lang": "zh-CN",
+  "icons": [
+    { "src": "icon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any" }
+  ]
+}

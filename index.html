@@ -3,16 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="本地图片/PDF 水印工具，零上传、可断网使用，所有处理均在浏览器本地内存中完成。">
+<meta name="theme-color" content="#f5f5f7">
 <title>LocalMark - 本地图片/PDF水印工具</title>
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="manifest" href="manifest.json">
 <style>
-  @font-face {
-    font-family: 'DM Sans';
-    font-style: normal;
-    font-weight: 400 700;
-    font-display: swap;
-    src: url('vendor/fonts/dmsans-latin.woff2') format('woff2');
-    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-  }
   @font-face {
     font-family: 'DM Mono';
     font-style: normal;
@@ -31,261 +28,290 @@
   }
 
   :root {
-    --white: #ffffff;
-    --black: #111111;
-    --gray-100: #f4f4f2;
-    --gray-200: #e6e5e1;
-    --gray-300: #d3d1cb;
-    --gray-400: #a8a69f;
-    --gray-500: #7a786f;
-    --gray-600: #55534b;
+    --bg: #f5f5f7;
+    --surface: #ffffff;
+    --text: #1d1d1f;
+    --text-secondary: #6e6e73;
+    --border: rgba(0,0,0,0.08);
+    --border-strong: rgba(0,0,0,0.14);
     --red: #b23a2e;
-    --font-sans: 'DM Sans', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    --red-soft: rgba(178,58,46,0.10);
+    --red-ring: rgba(178,58,46,0.18);
+    --track: #e8e8ed;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.04), 0 10px 30px rgba(0,0,0,.06);
+    --shadow-xs: 0 1px 2px rgba(0,0,0,.05);
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 20px;
+    --font-sans: "PingFang SC", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
     --font-mono: 'DM Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #000000;
+      --surface: #1c1c1e;
+      --text: #f5f5f7;
+      --text-secondary: #98989d;
+      --border: rgba(255,255,255,0.10);
+      --border-strong: rgba(255,255,255,0.18);
+      --red: #ff6b57;
+      --red-soft: rgba(255,107,87,0.14);
+      --red-ring: rgba(255,107,87,0.25);
+      --track: #2c2c2e;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.45);
+      --shadow-xs: 0 1px 2px rgba(0,0,0,.3);
+    }
   }
   * { box-sizing: border-box; }
   html, body {
     margin: 0; padding: 0;
-    background: var(--gray-100);
-    color: var(--black);
+    background: var(--bg);
+    color: var(--text);
     font-family: var(--font-sans);
     font-size: 14px;
+    -webkit-font-smoothing: antialiased;
   }
   header {
-    padding: 16px 24px;
-    background: var(--white);
-    border-bottom: 1px solid var(--black);
+    padding: 18px 28px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 14px;
   }
-  .brand { display: flex; align-items: center; gap: 10px; }
-  .brand svg { width: 22px; height: 22px; flex-shrink: 0; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand svg { width: 24px; height: 24px; flex-shrink: 0; color: var(--red); }
   header h1 {
     font-size: 17px;
     margin: 0;
-    font-weight: 700;
-    letter-spacing: 0.02em;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--text);
   }
   header .tag {
-    font-size: 11.5px;
-    color: var(--gray-500);
-    font-family: var(--font-mono);
+    display: block;
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    margin-top: 2px;
   }
-  .titleblock {
-    display: flex;
-    border: 1px solid var(--black);
-    font-family: var(--font-mono);
-    font-size: 10.5px;
-    line-height: 1;
+  .status-pill {
+    display: flex; align-items: center; gap: 7px;
+    background: var(--track);
+    border-radius: 999px;
+    padding: 7px 14px 7px 10px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap;
   }
-  .titleblock div {
-    padding: 6px 10px;
-    border-left: 1px solid var(--black);
-  }
-  .titleblock div:first-child { border-left: none; }
-  .titleblock .tb-label { color: var(--gray-500); display: block; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.06em; }
-  .titleblock .tb-value { color: var(--black); font-weight: 500; }
-  .titleblock .tb-accent .tb-value { color: var(--red); }
+  .status-pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--red); flex-shrink: 0; }
+  .status-pill strong { color: var(--text); font-weight: 500; }
 
   .privacy-banner {
-    background: var(--black);
-    color: var(--white);
-    font-size: 12px;
-    font-family: var(--font-mono);
-    padding: 8px 24px;
+    background: var(--surface);
+    color: var(--text-secondary);
+    font-size: 12.5px;
+    padding: 10px 28px;
     text-align: center;
-    letter-spacing: 0.01em;
+    border-bottom: 1px solid var(--border);
   }
-  .privacy-banner .accent { color: var(--red); }
+  .privacy-banner .accent { color: var(--red); font-weight: 500; }
 
   .layout {
     display: grid;
     grid-template-columns: 380px 1fr;
-    gap: 16px;
-    padding: 16px;
+    gap: 20px;
+    padding: 20px 28px 40px;
     align-items: start;
+    max-width: 1400px;
+    margin: 0 auto;
   }
   @media (max-width: 900px) {
-    .layout { grid-template-columns: 1fr; }
+    .layout { grid-template-columns: 1fr; padding: 16px 16px 32px; gap: 16px; }
   }
   .panel {
-    background: var(--white);
-    border: 1px solid var(--black);
-    border-radius: 0;
-    padding: 14px;
-    margin-bottom: 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 18px;
+    margin-bottom: 16px;
   }
   .panel h2 {
-    font-size: 11px;
-    margin: 0 0 12px 0;
-    padding-bottom: 8px;
-    border-bottom: 1px solid var(--gray-300);
-    color: var(--black);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    font-weight: 700;
-    font-family: var(--font-mono);
+    font-size: 13px;
+    margin: 0 0 14px 0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    font-weight: 600;
+    letter-spacing: -0.005em;
   }
-  .field { margin-bottom: 12px; }
+  .panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border);
+  }
+  .panel-header h2 { margin: 0; padding: 0; border: none; }
+  .field { margin-bottom: 14px; }
   .field:last-child { margin-bottom: 0; }
   .field label {
     display: block;
-    font-size: 12.5px;
-    color: var(--gray-600);
-    margin-bottom: 4px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
   }
   .field .row-value {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
-    font-size: 12.5px;
-    color: var(--gray-600);
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
   }
   .field .row-value span {
     font-family: var(--font-mono);
-    color: var(--black);
-    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+    font-size: 12.5px;
   }
   input[type="text"], input[type="number"], textarea, select {
     width: 100%;
-    padding: 7px 8px;
-    border: 1px solid var(--gray-300);
-    border-radius: 0;
-    font-size: 13.5px;
+    padding: 9px 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    font-size: 14px;
     font-family: inherit;
-    background: var(--white);
-    color: var(--black);
+    background: var(--surface);
+    color: var(--text);
+    transition: border-color .15s, box-shadow .15s;
   }
   input[type="text"]:focus, textarea:focus, select:focus {
     outline: none;
-    border-color: var(--black);
-  }
-  textarea { resize: vertical; min-height: 54px; font-family: var(--font-mono); font-size: 12.5px; }
-  input[type="range"] { width: 100%; accent-color: var(--black); }
-  input[type="color"] {
-    width: 44px; height: 30px; padding: 0; border: 1px solid var(--gray-300);
-    border-radius: 0; background: none; cursor: pointer;
-  }
-  .color-row { display: flex; align-items: center; gap: 8px; }
-  .btn {
-    padding: 7px 14px;
-    border-radius: 0;
-    border: 1px solid var(--black);
-    background: var(--white);
-    color: var(--black);
-    font-size: 12.5px;
-    font-family: var(--font-mono);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    cursor: pointer;
-  }
-  .btn:hover { background: var(--gray-100); }
-  .btn-primary {
-    background: var(--black);
-    color: var(--white);
-    border-color: var(--black);
-  }
-  .btn-primary:hover { background: #000; }
-  .btn-accent {
-    background: var(--red);
-    color: var(--white);
     border-color: var(--red);
+    box-shadow: 0 0 0 3px var(--red-ring);
   }
-  .btn-accent:hover { background: #942f25; }
-  .btn-danger { color: var(--red); border-color: var(--gray-300); }
-  .btn-danger:hover { border-color: var(--red); background: var(--white); }
+  textarea { resize: vertical; min-height: 56px; font-family: var(--font-mono); font-size: 13px; }
+  input[type="range"] { width: 100%; accent-color: var(--red); height: 4px; }
+  input[type="color"] {
+    width: 44px; height: 32px; padding: 0; border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm); background: none; cursor: pointer;
+  }
+  .color-row { display: flex; align-items: center; gap: 10px; }
+  .btn {
+    padding: 9px 16px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 13.5px;
+    font-family: var(--font-sans);
+    font-weight: 500;
+    cursor: pointer;
+    transition: background .15s, transform .05s, box-shadow .15s;
+  }
+  .btn:hover { background: var(--track); }
+  .btn:active { transform: scale(0.98); }
+  .btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--red-ring); }
+  @media (max-width: 900px) { .btn { min-height: 44px; } }
+  .btn-primary { background: var(--text); color: var(--surface); border-color: var(--text); }
+  .btn-primary:hover { opacity: .88; }
+  .btn-accent { background: var(--red); color: #fff; border-color: var(--red); box-shadow: var(--shadow-xs); }
+  .btn-accent:hover { opacity: .9; }
+  .btn-danger { color: var(--red); border-color: var(--border-strong); }
+  .btn-danger:hover { border-color: var(--red); background: var(--red-soft); }
   .btn-block { width: 100%; }
   .btn-row { display: flex; gap: 8px; }
   .btn-row .btn { flex: 1; }
+  .btn-text {
+    border: none; background: none; color: var(--text-secondary);
+    font-size: 12.5px; font-family: var(--font-sans); cursor: pointer; padding: 4px 6px;
+  }
+  .btn-text:hover { color: var(--red); }
   .switch-row { display: flex; align-items: center; justify-content: space-between; }
   .switch {
-    position: relative; width: 38px; height: 20px;
-    background: var(--white); border: 1px solid var(--black); border-radius: 0; cursor: pointer;
-    transition: background .15s; flex-shrink: 0;
+    position: relative; width: 46px; height: 26px;
+    background: var(--track); border: none; border-radius: 999px; cursor: pointer;
+    transition: background .2s; flex-shrink: 0;
   }
-  .switch.on { background: var(--black); }
+  .switch.on { background: var(--red); }
   .switch::after {
     content: ""; position: absolute; top: 2px; left: 2px;
-    width: 14px; height: 14px; background: var(--black); border-radius: 0;
-    transition: left .15s, background .15s;
+    width: 22px; height: 22px; background: #fff; border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0,0,0,.25);
+    transition: left .2s;
   }
-  .switch.on::after { left: 20px; background: var(--white); }
+  .switch.on::after { left: 22px; }
+  .switch:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--red-ring); }
 
   #dropzone {
-    border: 1px dashed var(--gray-400);
-    border-radius: 0;
-    padding: 22px 10px;
+    border: 1.5px dashed var(--border-strong);
+    border-radius: var(--radius-md);
+    padding: 26px 12px;
     text-align: center;
-    color: var(--gray-500);
+    color: var(--text-secondary);
     cursor: pointer;
-    transition: border-color .15s, background .15s;
-    font-size: 12.5px;
-    font-family: var(--font-mono);
+    transition: border-color .15s, background .15s, color .15s;
+    font-size: 13px;
   }
-  #dropzone.dragover { border-color: var(--red); border-style: solid; color: var(--red); }
+  #dropzone:hover { background: var(--bg); }
+  #dropzone:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--red-ring); border-color: var(--red); }
+  #dropzone.dragover { border-color: var(--red); border-style: solid; background: var(--red-soft); color: var(--red); }
   #fileInput { display: none; }
-  #fileList {
-    margin-top: 10px;
-    max-height: 160px;
-    overflow-y: auto;
-  }
+  #fileList { margin-top: 4px; max-height: 180px; overflow-y: auto; }
   .file-item {
     display: flex; align-items: center; gap: 8px;
-    padding: 5px 6px; border-radius: 0; font-size: 12.5px;
+    padding: 7px 8px; border-radius: var(--radius-sm); font-size: 13px;
     cursor: pointer;
-    border-left: 2px solid transparent;
   }
-  .file-item:hover { background: var(--gray-100); }
-  .file-item.active { background: var(--gray-100); border-left-color: var(--red); }
+  .file-item:hover { background: var(--bg); }
+  .file-item.active { background: var(--red-soft); font-weight: 500; }
+  .file-item.has-error { color: var(--red); }
   .file-item .ftag {
     font-family: var(--font-mono);
-    font-size: 9.5px;
-    font-weight: 700;
-    letter-spacing: 0.03em;
-    border: 1px solid var(--gray-400);
-    color: var(--gray-600);
-    padding: 1px 4px;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    border: 1px solid var(--border-strong);
+    border-radius: 5px;
+    color: var(--text-secondary);
+    padding: 2px 5px;
     flex-shrink: 0;
   }
+  .file-item.has-error .ftag { color: var(--red); border-color: var(--red); }
   .file-item .fname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-  .file-item .fremove { color: var(--gray-400); padding: 0 4px; font-family: var(--font-mono); }
+  .file-item .ferror { font-size: 11px; color: var(--red); flex-shrink: 0; }
+  .file-item .fremove { color: var(--text-secondary); padding: 0 4px; flex-shrink: 0; }
   .file-item .fremove:hover { color: var(--red); }
 
-  .grid9 {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 4px;
-    width: 120px;
-  }
+  .grid9 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; width: 128px; }
   .grid9 button {
     aspect-ratio: 1;
-    border: 1px solid var(--gray-300);
-    background: var(--white);
-    border-radius: 0;
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    border-radius: 6px;
     cursor: pointer;
+    transition: background .15s, border-color .15s;
   }
-  .grid9 button.active { background: var(--black); border-color: var(--black); }
-  .grid9 button:hover:not(.active) { background: var(--gray-100); }
+  .grid9 button.active { background: var(--red); border-color: var(--red); }
+  .grid9 button:hover:not(.active) { background: var(--bg); }
+  .grid9 button:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--red-ring); }
 
-  .mode-toggle {
-    display: flex; border: 1px solid var(--black); border-radius: 0; overflow: hidden;
-  }
+  .mode-toggle { display: flex; background: var(--track); border-radius: var(--radius-md); padding: 3px; gap: 2px; }
   .mode-toggle button {
-    flex: 1; padding: 7px; border: none; background: var(--white); cursor: pointer;
-    font-size: 11.5px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.03em;
-    border-right: 1px solid var(--black);
+    flex: 1; padding: 7px; border: none; background: transparent; cursor: pointer;
+    font-size: 12.5px; font-family: var(--font-sans); font-weight: 500; color: var(--text-secondary);
+    border-radius: 9px;
+    transition: background .15s, color .15s, box-shadow .15s;
   }
-  .mode-toggle button:last-child { border-right: none; }
-  .mode-toggle button.active { background: var(--black); color: var(--white); }
+  .mode-toggle button.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  .mode-toggle button:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--red-ring); }
 
   #previewArea {
-    background: var(--white);
-    border: 1px solid var(--black);
-    border-radius: 0;
-    padding: 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 18px;
     min-height: 500px;
     display: flex;
     flex-direction: column;
@@ -296,60 +322,66 @@
     align-items: center;
     justify-content: center;
     background-image:
-      linear-gradient(45deg, var(--gray-200) 25%, transparent 25%),
-      linear-gradient(-45deg, var(--gray-200) 25%, transparent 25%),
-      linear-gradient(45deg, transparent 75%, var(--gray-200) 75%),
-      linear-gradient(-45deg, transparent 75%, var(--gray-200) 75%);
+      linear-gradient(45deg, var(--track) 25%, transparent 25%),
+      linear-gradient(-45deg, var(--track) 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, var(--track) 75%),
+      linear-gradient(-45deg, transparent 75%, var(--track) 75%);
     background-size: 20px 20px;
     background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
-    background-color: var(--gray-100);
-    border: 1px solid var(--gray-200);
-    border-radius: 0;
+    background-color: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
     overflow: auto;
     min-height: 420px;
   }
-  #previewCanvas { max-width: 100%; max-height: 70vh; border: 1px solid var(--black); }
-  #previewEmpty { color: var(--gray-500); text-align: center; padding: 40px; font-family: var(--font-mono); font-size: 12.5px; }
-  #previewPdfNote { font-size: 11.5px; color: var(--gray-600); margin-top: 8px; font-family: var(--font-mono); }
-  .export-bar {
-    display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; align-items: center;
-  }
-  .export-bar .btn { flex: 1; min-width: 140px; }
-  #progressWrap { margin-top: 10px; display: none; }
-  #progressBar { width: 100%; height: 6px; background: var(--gray-200); border-radius: 0; overflow: hidden; }
-  #progressBar > div { height: 100%; background: var(--red); width: 0%; transition: width .2s; }
-  #progressLabel { font-size: 11.5px; color: var(--gray-600); margin-top: 4px; font-family: var(--font-mono); }
+  #previewCanvas { max-width: 100%; max-height: 70vh; border-radius: 8px; box-shadow: var(--shadow-xs); }
+  #previewEmpty { color: var(--text-secondary); text-align: center; padding: 40px; font-size: 13px; }
+  #previewPdfNote { font-size: 12px; color: var(--text-secondary); margin-top: 10px; }
+  .export-bar { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; align-items: center; }
+  .export-bar .btn { flex: 1; min-width: 150px; }
+  #progressWrap { margin-top: 12px; display: none; }
+  #progressBar { width: 100%; height: 6px; background: var(--track); border-radius: 999px; overflow: hidden; }
+  #progressBar > div { height: 100%; background: var(--red); width: 0%; border-radius: 999px; transition: width .2s; }
+  #progressBar.indeterminate > div { width: 40% !important; animation: indet 1.1s ease-in-out infinite; }
+  @keyframes indet { 0% { transform: translateX(-120%); } 100% { transform: translateX(280%); } }
+  #progressLabel { font-size: 12px; color: var(--text-secondary); margin-top: 6px; font-variant-numeric: tabular-nums; }
 
-  .preset-list { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; max-height: 120px; overflow-y: auto; }
-  .preset-item { display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; border-radius: 0; font-size: 12.5px; border-bottom: 1px solid var(--gray-200); }
-  .preset-item:hover { background: var(--gray-100); }
+  .preset-list { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; max-height: 130px; overflow-y: auto; }
+  .preset-item { display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; border-radius: var(--radius-sm); font-size: 13px; }
+  .preset-item:hover { background: var(--bg); }
   .preset-item .pname { cursor: pointer; flex: 1; }
   .preset-item .pactions { display: flex; gap: 6px; }
-  .preset-item .pactions span { cursor: pointer; color: var(--gray-500); font-size: 11px; font-family: var(--font-mono); text-transform: uppercase; }
+  .preset-item .pactions span { cursor: pointer; color: var(--text-secondary); font-size: 12px; }
   .preset-item .pactions span:hover { color: var(--red); }
 
-  .inline2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  footer {
-    text-align: center;
-    padding: 16px;
-    font-size: 11px;
-    color: var(--gray-500);
-    font-family: var(--font-mono);
-  }
-  footer .credit {
-    margin-top: 8px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
+  .inline2 { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+  footer { text-align: center; padding: 24px 16px; font-size: 12px; color: var(--text-secondary); }
+  footer .credit { margin-top: 8px; }
   footer .credit .accent { color: var(--red); }
+
+  #toastWrap {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    display: flex; flex-direction: column; align-items: center; gap: 8px; z-index: 1000;
+    pointer-events: none; width: 100%; padding: 0 16px;
+  }
+  .toast {
+    background: var(--text); color: var(--bg);
+    padding: 10px 18px; border-radius: 999px;
+    font-size: 13px; box-shadow: var(--shadow-sm);
+    opacity: 0; transform: translateY(8px);
+    transition: opacity .2s ease-out, transform .2s ease-out;
+    max-width: 90vw; text-align: center;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.error { background: var(--red); color: #fff; }
 </style>
 </head>
 <body>
 
 <header>
   <div class="brand">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter">
-      <rect x="5" y="11" width="14" height="10" />
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="5" y="11" width="14" height="10" rx="2" />
       <path d="M8 11V7a4 4 0 0 1 8 0v4" />
       <line x1="12" y1="15" x2="12" y2="18" />
     </svg>
@@ -358,11 +390,7 @@
       <span class="tag">本地图片/PDF水印工具</span>
     </div>
   </div>
-  <div class="titleblock">
-    <div><span class="tb-label">Process</span><span class="tb-value">Browser-Local</span></div>
-    <div><span class="tb-label">Network</span><span class="tb-value">None</span></div>
-    <div class="tb-accent"><span class="tb-label">Status</span><span class="tb-value">Offline-Ready</span></div>
-  </div>
+  <div class="status-pill"><span class="dot"></span>本地处理 · <strong>可离线使用</strong></div>
 </header>
 <div class="privacy-banner">
   所有图片/PDF处理均在浏览器本地完成（Canvas API），不上传、不联网、不经过任何服务器 — <span class="accent">可断网使用</span>
@@ -373,19 +401,22 @@
   <div id="leftPanel">
 
     <div class="panel">
-      <h2>上传文件</h2>
-      <div id="dropzone">
-        拖拽图片 (JPG/PNG) 或 PDF 到此处<br>或点击选择文件
+      <div class="panel-header">
+        <h2>上传文件</h2>
+        <button class="btn-text" id="clearAllFiles" style="display:none;">清空全部</button>
       </div>
-      <input type="file" id="fileInput" multiple accept="image/jpeg,image/png,application/pdf">
+      <div id="dropzone" role="button" tabindex="0" aria-label="点击或拖拽上传图片或 PDF 文件">
+        拖拽图片 (JPG/PNG/WEBP) 或 PDF 到此处<br>或点击选择文件
+      </div>
+      <input type="file" id="fileInput" multiple accept="image/jpeg,image/png,image/webp,application/pdf">
       <div id="fileList"></div>
     </div>
 
     <div class="panel">
       <h2>水印类型</h2>
       <div class="mode-toggle">
-        <button id="wmTypeText" class="active">文字水印</button>
-        <button id="wmTypeImage">图片/Logo水印</button>
+        <button id="wmTypeText" class="active" aria-pressed="true">文字水印</button>
+        <button id="wmTypeImage" aria-pressed="false">图片/Logo水印</button>
       </div>
 
       <div id="textWmFields" style="margin-top:12px;">
@@ -404,32 +435,32 @@
           <label>上传水印图片/Logo（PNG建议带透明背景）</label>
           <input type="file" id="wmImageInput" accept="image/png,image/jpeg">
           <div id="wmImagePreviewWrap" style="margin-top:8px; display:none;">
-            <img id="wmImagePreview" style="max-width:100%; max-height:80px; border:1px solid var(--gray-300);">
-            <button class="btn btn-danger" id="wmImageClear" style="margin-top:6px;">移除水印图片</button>
+            <img id="wmImagePreview" alt="水印图片预览" style="max-width:100%; max-height:80px; border-radius:8px; border:1px solid var(--border-strong);">
+            <button class="btn btn-danger" id="wmImageClear" style="margin-top:8px;">移除水印图片</button>
           </div>
         </div>
       </div>
     </div>
 
-    <div class="panel" id="textStylePanel">
-      <h2>文字样式</h2>
-      <div class="field color-row">
+    <div class="panel" id="wmStylePanel">
+      <h2>水印样式</h2>
+      <div class="field color-row" id="colorField">
         <div style="flex:1;">
           <label>字体颜色</label>
         </div>
         <input type="color" id="wmColor" value="#ff0000">
       </div>
       <div class="field">
-        <div class="row-value"><label>字体大小</label><span id="fontSizeVal">36px</span></div>
+        <div class="row-value"><label id="fontSizeLabel">字体大小</label><span id="fontSizeVal">36px</span></div>
         <input type="range" id="fontSize" min="8" max="200" value="36">
       </div>
       <div class="field">
         <div class="row-value"><label>透明度</label><span id="opacityVal">50%</span></div>
         <input type="range" id="opacity" min="0" max="100" value="50">
       </div>
-      <div class="field switch-row">
+      <div class="field switch-row" id="strokeField">
         <label style="margin:0;">描边/阴影（提升可读性）</label>
-        <div class="switch" id="strokeSwitch"></div>
+        <div class="switch" id="strokeSwitch" role="switch" aria-checked="false" tabindex="0" aria-label="描边/阴影"></div>
       </div>
       <div class="field">
         <label>混合模式</label>
@@ -448,8 +479,8 @@
       <div class="field">
         <label>定位模式</label>
         <div class="mode-toggle">
-          <button id="layoutTile" class="active">平铺</button>
-          <button id="layoutSingle">单点（九宫格）</button>
+          <button id="layoutTile" class="active" aria-pressed="true">平铺</button>
+          <button id="layoutSingle" aria-pressed="false">单点（九宫格）</button>
         </div>
       </div>
 
@@ -467,10 +498,10 @@
       <div id="singleFields" style="display:none;">
         <div class="field">
           <label>九宫格位置</label>
-          <div class="grid9" id="grid9">
-            <button data-pos="tl"></button><button data-pos="tc"></button><button data-pos="tr"></button>
-            <button data-pos="cl"></button><button data-pos="cc" class="active"></button><button data-pos="cr"></button>
-            <button data-pos="bl"></button><button data-pos="bc"></button><button data-pos="br"></button>
+          <div class="grid9" id="grid9" role="group" aria-label="水印位置">
+            <button data-pos="tl" aria-label="左上"></button><button data-pos="tc" aria-label="上中"></button><button data-pos="tr" aria-label="右上"></button>
+            <button data-pos="cl" aria-label="左中"></button><button data-pos="cc" class="active" aria-label="居中" aria-pressed="true"></button><button data-pos="cr" aria-label="右中"></button>
+            <button data-pos="bl" aria-label="左下"></button><button data-pos="bc" aria-label="下中"></button><button data-pos="br" aria-label="右下"></button>
           </div>
         </div>
       </div>
@@ -485,7 +516,7 @@
       <h2>预设模板</h2>
       <div class="inline2">
         <input type="text" id="presetName" placeholder="预设名称">
-        <button class="btn" id="savePreset">保存当前设置</button>
+        <button class="btn" id="savePreset">保存</button>
       </div>
       <div class="preset-list" id="presetList"></div>
     </div>
@@ -501,9 +532,9 @@
     <div id="previewPdfNote"></div>
 
     <div class="export-bar">
-      <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--gray-600); font-family:var(--font-mono);">
+      <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--text-secondary);">
         <input type="checkbox" id="jpgQualityToggle"> JPG导出质量
-        <select id="jpgQuality" style="width:80px;">
+        <select id="jpgQuality" style="width:88px;">
           <option value="1">100%</option>
           <option value="0.92" selected>92%</option>
           <option value="0.8">80%</option>
@@ -522,8 +553,10 @@
 
 <footer>
   LocalMark — 所有文件处理均在您的浏览器本地内存中完成，不上传、不存储、不经过任何服务器/API，断网也可使用。仅使用 localStorage 保存您的水印参数预设（不含文件内容）。
-  <div class="credit">Design by <span class="accent">Krstic</span> - 2026</div>
+  <div class="credit">Design by <span class="accent">Krstic</span> · 2026</div>
 </footer>
+
+<div id="toastWrap" aria-live="polite"></div>
 
 <script src="vendor/pdf-lib.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
@@ -533,7 +566,7 @@
 
   // ---------- State ----------
   const state = {
-    files: [],          // {id, file, type:'image'|'pdf', imgEl?, pdfDoc?(ArrayBuffer), pageCount?}
+    files: [],          // {id, file, type:'image'|'pdf', imgEl?, pdfDoc?(ArrayBuffer), pageCount?, error?}
     activeIndex: -1,
     wm: {
       type: 'text',      // 'text' | 'image'
@@ -564,6 +597,23 @@
   }
   function formatDateTime(d) {
     return `${formatDate(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  // ---------- Toast (non-blocking feedback, replaces alert()) ----------
+  let toastTimer = null;
+  function showToast(message, type) {
+    const wrap = $('toastWrap');
+    wrap.innerHTML = '';
+    const el = document.createElement('div');
+    el.className = 'toast' + (type === 'error' ? ' error' : '');
+    el.textContent = message;
+    wrap.appendChild(el);
+    requestAnimationFrame(() => el.classList.add('show'));
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      el.classList.remove('show');
+      setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 250);
+    }, 3200);
   }
 
   // ---------- Persistence (settings only, not files) ----------
@@ -626,6 +676,7 @@
     $('opacity').value = w.opacity;
     $('opacityVal').textContent = w.opacity + '%';
     $('strokeSwitch').classList.toggle('on', !!w.stroke);
+    $('strokeSwitch').setAttribute('aria-checked', String(!!w.stroke));
     $('blendMode').value = w.blend;
     $('angle').value = w.angle;
     $('angleVal').textContent = w.angle + '°';
@@ -633,19 +684,32 @@
     $('margin').value = w.margin;
     $('marginVal').textContent = w.margin + 'px';
 
-    $('wmTypeText').classList.toggle('active', w.type === 'text');
-    $('wmTypeImage').classList.toggle('active', w.type === 'image');
-    $('textWmFields').style.display = w.type === 'text' ? '' : 'none';
-    $('imageWmFields').style.display = w.type === 'image' ? '' : 'none';
-    $('textStylePanel').style.display = w.type === 'text' ? '' : 'none';
+    const isText = w.type === 'text';
+    $('wmTypeText').classList.toggle('active', isText);
+    $('wmTypeText').setAttribute('aria-pressed', String(isText));
+    $('wmTypeImage').classList.toggle('active', !isText);
+    $('wmTypeImage').setAttribute('aria-pressed', String(!isText));
+    $('textWmFields').style.display = isText ? '' : 'none';
+    $('imageWmFields').style.display = isText ? 'none' : '';
+    // Style panel stays visible for both modes — only the text-only fields
+    // (color / stroke) toggle. Size, opacity and blend mode apply to both
+    // text and image watermarks (see applyWatermark), so they must stay reachable.
+    $('colorField').style.display = isText ? '' : 'none';
+    $('strokeField').style.display = isText ? '' : 'none';
+    $('fontSizeLabel').textContent = isText ? '字体大小' : '水印缩放';
 
-    $('layoutTile').classList.toggle('active', w.layout === 'tile');
-    $('layoutSingle').classList.toggle('active', w.layout === 'single');
-    $('tileFields').style.display = w.layout === 'tile' ? '' : 'none';
-    $('singleFields').style.display = w.layout === 'single' ? '' : 'none';
+    const isTile = w.layout === 'tile';
+    $('layoutTile').classList.toggle('active', isTile);
+    $('layoutTile').setAttribute('aria-pressed', String(isTile));
+    $('layoutSingle').classList.toggle('active', !isTile);
+    $('layoutSingle').setAttribute('aria-pressed', String(!isTile));
+    $('tileFields').style.display = isTile ? '' : 'none';
+    $('singleFields').style.display = isTile ? 'none' : '';
 
     document.querySelectorAll('#grid9 button').forEach(b => {
-      b.classList.toggle('active', b.dataset.pos === w.gridPos);
+      const active = b.dataset.pos === w.gridPos;
+      b.classList.toggle('active', active);
+      b.setAttribute('aria-pressed', String(active));
     });
 
     if (w.wmImageDataUrl) {
@@ -665,17 +729,26 @@
   function handleFiles(fileListArr) {
     const arr = Array.from(fileListArr);
     let added = 0;
+    let skipped = 0;
     arr.forEach(file => {
-      const isImg = file.type === 'image/jpeg' || file.type === 'image/png';
+      const isImg = file.type === 'image/jpeg' || file.type === 'image/png' || file.type === 'image/webp';
       const isPdf = file.type === 'application/pdf';
-      if (!isImg && !isPdf) return;
+      if (!isImg && !isPdf) { skipped++; return; }
       const entry = { id: uid(), file, type: isImg ? 'image' : 'pdf', name: file.name };
       state.files.push(entry);
       added++;
       if (isImg) {
         const reader = new FileReader();
+        reader.onerror = () => {
+          entry.error = true; entry.errorMsg = '读取文件失败';
+          renderFileList();
+        };
         reader.onload = (e) => {
           const img = new Image();
+          img.onerror = () => {
+            entry.error = true; entry.errorMsg = '图片解码失败';
+            renderFileList();
+          };
           img.onload = () => {
             entry.imgEl = img;
             renderFileList();
@@ -687,13 +760,18 @@
         reader.readAsDataURL(file);
       } else {
         const reader = new FileReader();
+        reader.onerror = () => {
+          entry.error = true; entry.errorMsg = '读取文件失败';
+          renderFileList();
+        };
         reader.onload = async (e) => {
           entry.arrayBuffer = e.target.result;
           try {
             const pdfDoc = await PDFLib.PDFDocument.load(entry.arrayBuffer.slice(0), { updateMetadata: false });
             entry.pageCount = pdfDoc.getPageCount();
           } catch (err) {
-            entry.pageCount = '?';
+            entry.error = true; entry.errorMsg = 'PDF 解析失败';
+            entry.arrayBuffer = null;
           }
           renderFileList();
           if (state.activeIndex === -1) setActiveFile(state.files.indexOf(entry));
@@ -703,6 +781,7 @@
       }
     });
     if (added > 0) renderFileList();
+    if (skipped > 0) showToast(`已跳过 ${skipped} 个不支持的文件（仅支持 JPG/PNG/WEBP/PDF）`, 'error');
   }
 
   function renderFileList() {
@@ -710,10 +789,11 @@
     wrap.innerHTML = '';
     state.files.forEach((f, i) => {
       const div = document.createElement('div');
-      div.className = 'file-item' + (i === state.activeIndex ? ' active' : '');
+      div.className = 'file-item' + (i === state.activeIndex ? ' active' : '') + (f.error ? ' has-error' : '');
       const tag = f.type === 'pdf' ? 'PDF' : 'IMG';
-      div.innerHTML = `<span class="ftag">${tag}</span><span class="fname"></span><span class="fremove" data-i="${i}">✕</span>`;
+      div.innerHTML = `<span class="ftag">${tag}</span><span class="fname"></span>${f.error ? '<span class="ferror">⚠</span>' : ''}<span class="fremove" data-i="${i}">✕</span>`;
       div.querySelector('.fname').textContent = f.name;
+      if (f.error) div.title = f.errorMsg || '加载失败';
       div.addEventListener('click', (e) => {
         if (e.target.classList.contains('fremove')) return;
         setActiveFile(i);
@@ -724,7 +804,9 @@
       });
       wrap.appendChild(div);
     });
-    $('fileCount').textContent = state.files.length;
+    const readyCount = state.files.filter(f => !f.error).length;
+    $('fileCount').textContent = readyCount;
+    $('clearAllFiles').style.display = state.files.length > 0 ? '' : 'none';
   }
 
   function removeFile(i) {
@@ -734,6 +816,13 @@
     } else if (state.activeIndex > i) {
       state.activeIndex--;
     }
+    renderFileList();
+    renderPreview();
+  }
+
+  function clearAllFiles() {
+    state.files = [];
+    state.activeIndex = -1;
     renderFileList();
     renderPreview();
   }
@@ -782,10 +871,20 @@
 
   // Brick-style staggered tile grid: odd rows are shifted by half a column
   // so the pattern fills the diagonal gaps a plain grid leaves behind.
+  // Instance count is capped so pathological combinations (huge canvas +
+  // tiny watermark + minimal density) can't balloon into tens of thousands
+  // of draw calls and freeze the tab.
+  const MAX_TILE_INSTANCES = 4000;
   function forEachTileCell(canvasW, canvasH, stepX, stepY, cb) {
     const diag = Math.sqrt(canvasW * canvasW + canvasH * canvasH);
-    const cols = Math.ceil(diag / stepX) + 2;
-    const rows = Math.ceil(diag / stepY) + 2;
+    let cols = Math.ceil(diag / stepX) + 2;
+    let rows = Math.ceil(diag / stepY) + 2;
+    const total = (2 * cols + 1) * (2 * rows + 1);
+    if (total > MAX_TILE_INSTANCES) {
+      const factor = Math.sqrt(total / MAX_TILE_INSTANCES);
+      cols = Math.max(1, Math.round(cols / factor));
+      rows = Math.max(1, Math.round(rows / factor));
+    }
     for (let r = -rows; r <= rows; r++) {
       const rowOffset = (r % 2 !== 0) ? stepX / 2 : 0;
       for (let c = -cols; c <= cols; c++) {
@@ -875,6 +974,14 @@
     }
     const entry = state.files[state.activeIndex];
 
+    if (entry.error) {
+      canvas.style.display = 'none';
+      empty.style.display = '';
+      empty.textContent = `文件加载失败：${entry.errorMsg || '未知错误'}`;
+      return;
+    }
+    empty.textContent = '请先在左侧上传图片或 PDF';
+
     if (entry.type === 'image') {
       if (!entry.imgEl) { empty.style.display = ''; canvas.style.display = 'none'; return; }
       empty.style.display = 'none';
@@ -921,7 +1028,7 @@
     ctx.drawImage(img, 0, 0);
     applyWatermark(ctx, canvas.width, canvas.height);
     const isJpg = entry.file.type === 'image/jpeg';
-    const mime = isJpg ? 'image/jpeg' : 'image/png';
+    const mime = isJpg ? 'image/jpeg' : (entry.file.type === 'image/webp' ? 'image/webp' : 'image/png');
     const useQuality = $('jpgQualityToggle').checked;
     const quality = isJpg && useQuality ? parseFloat($('jpgQuality').value) : undefined;
     const blob = await canvasToBlob(canvas, mime, quality);
@@ -934,21 +1041,30 @@
     const srcBytes = entry.arrayBuffer.slice(0);
     const pdfDoc = await PDFDocument.load(srcBytes);
     const pages = pdfDoc.getPages();
+    const scale = 2; // improve sharpness
+
+    // Pages sharing the same size (the common case) produce byte-identical
+    // watermark art — embed each unique size once and reuse it across pages
+    // instead of re-rendering/re-encoding a PNG per page.
+    const pngCache = new Map();
 
     for (const page of pages) {
       const { width, height } = page.getSize();
-      // Render watermark pattern onto an offscreen transparent canvas at page pixel size
-      const scale = 2; // improve sharpness
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.round(width * scale);
-      canvas.height = Math.round(height * scale);
-      const ctx = canvas.getContext('2d');
-      ctx.scale(scale, scale);
-      applyWatermark(ctx, width, height);
+      const key = Math.round(width) + 'x' + Math.round(height);
+      let pngImage = pngCache.get(key);
+      if (!pngImage) {
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(width * scale);
+        canvas.height = Math.round(height * scale);
+        const ctx = canvas.getContext('2d');
+        ctx.scale(scale, scale);
+        applyWatermark(ctx, width, height);
 
-      const pngBlob = await canvasToBlob(canvas, 'image/png');
-      const pngBytes = new Uint8Array(await pngBlob.arrayBuffer());
-      const pngImage = await pdfDoc.embedPng(pngBytes);
+        const pngBlob = await canvasToBlob(canvas, 'image/png');
+        const pngBytes = new Uint8Array(await pngBlob.arrayBuffer());
+        pngImage = await pdfDoc.embedPng(pngBytes);
+        pngCache.set(key, pngImage);
+      }
       page.drawImage(pngImage, { x: 0, y: 0, width, height });
     }
 
@@ -976,17 +1092,31 @@
   async function downloadSingle() {
     if (state.activeIndex === -1) return;
     const entry = state.files[state.activeIndex];
-    if (entry.type === 'image' && !entry.imgEl) return;
-    if (entry.type === 'pdf' && !entry.arrayBuffer) return;
-    const blob = entry.type === 'image' ? await exportImageEntry(entry) : await exportPdfEntry(entry);
-    triggerDownload(blob, watermarkedFilename(entry.name));
+    if (entry.error) { showToast('该文件加载失败，无法导出', 'error'); return; }
+    if (entry.type === 'image' && !entry.imgEl) { showToast('文件还在加载中，请稍候', 'error'); return; }
+    if (entry.type === 'pdf' && !entry.arrayBuffer) { showToast('文件还在加载中，请稍候', 'error'); return; }
+
+    const bar = $('progressBar');
+    bar.classList.add('indeterminate');
+    $('progressWrap').style.display = '';
+    $('progressLabel').textContent = `正在导出 ${entry.name}...`;
+    try {
+      const blob = entry.type === 'image' ? await exportImageEntry(entry) : await exportPdfEntry(entry);
+      triggerDownload(blob, watermarkedFilename(entry.name));
+      showToast('导出完成');
+    } finally {
+      bar.classList.remove('indeterminate');
+      $('progressWrap').style.display = 'none';
+    }
   }
 
   async function downloadAllZip() {
     if (state.files.length === 0) return;
-    const ready = state.files.filter(f => (f.type === 'image' && f.imgEl) || (f.type === 'pdf' && f.arrayBuffer));
-    if (ready.length === 0) return;
+    const ready = state.files.filter(f => !f.error && ((f.type === 'image' && f.imgEl) || (f.type === 'pdf' && f.arrayBuffer)));
+    const skipped = state.files.length - ready.length;
+    if (ready.length === 0) { showToast('没有可导出的文件（文件可能仍在加载或加载失败）', 'error'); return; }
 
+    $('progressBar').classList.remove('indeterminate');
     $('progressWrap').style.display = '';
     const zip = new JSZip();
     let done = 0;
@@ -1009,6 +1139,10 @@
     });
     triggerDownload(zipBlob, `LocalMark_导出_${formatDate(new Date())}.zip`);
     setTimeout(() => { $('progressWrap').style.display = 'none'; }, 1500);
+    showToast(skipped > 0
+      ? `已导出 ${ready.length} 个文件，${skipped} 个因未加载完成/加载失败被跳过`
+      : `已导出 ${ready.length} 个文件`,
+      skipped > 0 ? 'error' : undefined);
   }
 
   // ---------- Presets ----------
@@ -1018,7 +1152,7 @@
     wrap.innerHTML = '';
     const names = Object.keys(presets);
     if (names.length === 0) {
-      wrap.innerHTML = '<div style="color:var(--gray-500); font-size:12px; font-family:var(--font-mono);">暂无保存的预设</div>';
+      wrap.innerHTML = '<div style="color:var(--text-secondary); font-size:12.5px;">暂无保存的预设</div>';
       return;
     }
     names.forEach(name => {
@@ -1047,6 +1181,9 @@
   function bindEvents() {
     const dz = $('dropzone');
     dz.addEventListener('click', () => $('fileInput').click());
+    dz.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('fileInput').click(); }
+    });
     dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
     dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
     dz.addEventListener('drop', e => {
@@ -1058,6 +1195,7 @@
       handleFiles(e.target.files);
       e.target.value = '';
     });
+    $('clearAllFiles').addEventListener('click', clearAllFiles);
 
     $('wmTypeText').addEventListener('click', () => { state.wm.type = 'text'; syncUiFromState(); renderPreview(); saveLastSettings(); });
     $('wmTypeImage').addEventListener('click', () => { state.wm.type = 'image'; syncUiFromState(); renderPreview(); saveLastSettings(); });
@@ -1078,6 +1216,7 @@
       const file = e.target.files[0];
       if (!file) return;
       const reader = new FileReader();
+      reader.onerror = () => showToast('水印图片读取失败', 'error');
       reader.onload = (ev) => {
         state.wm.wmImageDataUrl = ev.target.result;
         $('wmImagePreview').src = ev.target.result;
@@ -1110,7 +1249,11 @@
     $('strokeSwitch').addEventListener('click', () => {
       state.wm.stroke = !state.wm.stroke;
       $('strokeSwitch').classList.toggle('on', state.wm.stroke);
+      $('strokeSwitch').setAttribute('aria-checked', String(state.wm.stroke));
       renderPreview(); saveLastSettings();
+    });
+    $('strokeSwitch').addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('strokeSwitch').click(); }
     });
     $('blendMode').addEventListener('change', e => { state.wm.blend = e.target.value; renderPreview(); saveLastSettings(); });
 
@@ -1136,27 +1279,39 @@
     document.querySelectorAll('#grid9 button').forEach(b => {
       b.addEventListener('click', () => {
         state.wm.gridPos = b.dataset.pos;
-        document.querySelectorAll('#grid9 button').forEach(x => x.classList.remove('active'));
+        document.querySelectorAll('#grid9 button').forEach(x => { x.classList.remove('active'); x.setAttribute('aria-pressed', 'false'); });
         b.classList.add('active');
+        b.setAttribute('aria-pressed', 'true');
         renderPreview(); saveLastSettings();
       });
     });
 
     $('savePreset').addEventListener('click', () => {
       const name = $('presetName').value.trim();
-      if (!name) { alert('请输入预设名称'); return; }
+      if (!name) { showToast('请输入预设名称', 'error'); return; }
       const presets = getPresets();
+      if (presets[name] && !confirm(`预设"${name}"已存在，覆盖吗？`)) return;
       presets[name] = Object.assign({}, state.wm);
       setPresets(presets);
       $('presetName').value = '';
       renderPresetList();
+      showToast(`已保存预设"${name}"`);
     });
 
     $('downloadSingle').addEventListener('click', () => {
-      downloadSingle().catch(err => { console.error(err); alert('导出失败：' + err.message); });
+      downloadSingle().catch(err => { console.error(err); showToast('导出失败：' + err.message, 'error'); });
     });
     $('downloadAllZip').addEventListener('click', () => {
-      downloadAllZip().catch(err => { console.error(err); alert('批量导出失败：' + err.message); });
+      downloadAllZip().catch(err => { console.error(err); showToast('批量导出失败：' + err.message, 'error'); });
+    });
+  }
+
+  // ---------- Offline support ----------
+  function registerServiceWorker() {
+    if (!('serviceWorker' in navigator)) return;
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost') return;
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
     });
   }
 
@@ -1167,6 +1322,7 @@
     bindEvents();
     renderPresetList();
     renderPreview();
+    registerServiceWorker();
   }
 
   document.addEventListener('DOMContentLoaded', init);

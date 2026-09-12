@@ -46,7 +46,7 @@ index.html          single-file app: all HTML/CSS/JS
 vendor/
   pdf-lib.min.js     bundled PDF processing library
   jszip.min.js       bundled ZIP packing library
-  fonts/             bundled DM Sans / DM Mono font files
+  fonts/             bundled DM Mono font (used for numeric labels only; body text uses system fonts)
 ```
 
 ## Privacy

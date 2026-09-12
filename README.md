@@ -46,7 +46,7 @@ index.html          单文件应用，包含全部 HTML/CSS/JS
 vendor/
   pdf-lib.min.js     本地打包的 PDF 处理库
   jszip.min.js       本地打包的 ZIP 打包库
-  fonts/             本地打包的 DM Sans / DM Mono 字体
+  fonts/             本地打包的 DM Mono 字体（仅用于数值展示，正文走系统字体）
 ```
 
 ## 隐私说明
