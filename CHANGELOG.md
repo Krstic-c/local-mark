@@ -11,6 +11,11 @@
   - 顺手把 `<title>`/`<meta description>`/头部 `.tag` 文案从"水印工具"更新为"水印与打码工具"，`sw.js` 的 `CACHE_NAME` 升到 `v2`
   - 影响范围：`index.html` 新增约 700 行（CSS 一段 + HTML 一段 + JS 一大段），`sw.js` 一行版本号；未修改 `state`/`wm` 相关的任何既有函数或行为，本地起 `python3 -m http.server` 用 Chrome 实测了画框/切换类型/缩放/移动/列表选中/键盘删除/移除图片/导出全部通路，导出的 PNG 用注入到页面里对比截图确认打码已正确烘焙进图片本体
 
+- **修复打码工具"最大强度也不够强"的反馈**，两处改动：
+  - 马赛克粒度/模糊强度滑块的上限从固定 60px 改为跟随"当前编辑的区域"（或未选中时跟随图片尺寸）动态放大（`syncRedactControlsFromActive` 里新增 `redactStrengthReferenceSize`），确保滑块拉到最大总能把该区域彻底盖成不可辨认，而不是在大图/大框上显得"不够强"
+  - **模糊效果的实现方式整个换掉**：原来用 `ctx.filter = blur()` + `drawImage`，语法和用法都没错，但实测发现对"图片解码内容"效果极弱（滑块拉满文字依然清晰），换成 `fillText`/`fillRect` 画的合成内容测试却完全正常——反复排查排除了离屏 canvas 合成时机、`clip()`、坐标越界等可能性后，认定是这套环境下 `filter: blur()` 作为图片来源画面的 `drawImage` 滤镜不可靠（原因未完全查清）。改成跟像素化同源的"缩小再放大+双线性平滑"技巧，不依赖 CSS Filter Effects，实测从默认强度到滑块最大值都能正确渐进增强直至完全洗白。详见 CLAUDE.md「已知的坑」，以后做模糊效果都不要再用 `ctx.filter = blur()`
+  - 影响范围：仅 `index.html` 的 `applyBlurRegion`/`syncRedactControlsFromActive`；本地起服务器用 Chrome 反复实测过马赛克/模糊在多个强度下的实际像素效果（含导出结果），水印工具与打码的纯色块效果未受影响
+
 ## 2026-09-12
 
 - **视觉风格由"黑白工业风"全面改为"苹果极简风"**（用户要求参照 `design-style` 仓库的 `apple-minimal.md` 规范重做）：圆角分层（6-24px）+ 柔和阴影替换直角硬边框；中性色改用 `#1d1d1f`/`#6e6e73`/`#f5f5f7` 而非纯黑白；正文/标题字体改为系统字体栈（PingFang SC 优先），移除 `DM Sans`（`vendor/fonts/dmsans-latin.woff2` 已删除），`DM Mono` 保留给滑块数值等数据展示场景；开关/分段控件改为真实的 iOS 风格组件；新增深色模式（跟随系统 `prefers-color-scheme`）；头部工程图纸 title block 换成圆角 status pill。红色强调色 `#b23a2e` 保留，延续品牌识别。

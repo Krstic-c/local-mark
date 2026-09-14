@@ -1482,12 +1482,34 @@
     return redactState.regions.find(r => r.id === redactState.selectedId) || null;
   }
 
+  // The strength sliders' max scales with the box being edited (or the loaded
+  // image, before any box exists) instead of a fixed ceiling — a flat 60px
+  // cap looks strong on a small box but does nothing useful once the box (or
+  // the source photo) is a few thousand pixels across. Block size is capped
+  // so it can always reach the box's own size (collapsing it to a single
+  // averaged block — the strongest possible mosaic); blur is capped lower
+  // since a very large radius is both unnecessary and slow to render.
+  function redactStrengthReferenceSize(sel) {
+    if (sel) return Math.max(sel.w, sel.h);
+    if (redactImgEl) return Math.max(60, Math.round(Math.min(redactImgEl.naturalWidth, redactImgEl.naturalHeight) * 0.2));
+    return 60;
+  }
+
   function syncRedactControlsFromActive() {
     const sel = getSelectedRedactRegion();
     const type = sel ? sel.type : redactState.defaultType;
     const color = sel ? sel.color : redactState.defaultColor;
-    const blockSize = sel ? sel.blockSize : redactState.defaultBlockSize;
-    const blurRadius = sel ? sel.blurRadius : redactState.defaultBlurRadius;
+
+    const refSize = redactStrengthReferenceSize(sel);
+    const blockMax = Math.min(400, Math.max(60, Math.round(refSize)));
+    const blurMax = Math.min(300, Math.max(60, Math.round(refSize)));
+    $('redactBlockSize').max = blockMax;
+    $('redactBlurRadius').max = blurMax;
+
+    let blockSize = Math.min(sel ? sel.blockSize : redactState.defaultBlockSize, blockMax);
+    let blurRadius = Math.min(sel ? sel.blurRadius : redactState.defaultBlurRadius, blurMax);
+    if (sel) { sel.blockSize = blockSize; sel.blurRadius = blurRadius; }
+    else { redactState.defaultBlockSize = blockSize; redactState.defaultBlurRadius = blurRadius; }
 
     $('redactTypeSolid').classList.toggle('active', type === 'solid');
     $('redactTypeSolid').setAttribute('aria-pressed', String(type === 'solid'));
@@ -1601,9 +1623,16 @@
 
   function applyBlurRegion(ctx, r) {
     const radius = r.blurRadius;
-    // Sample a padded region around the box (clamped to image bounds) so the
-    // blur draws on real surrounding content instead of fading at the edges;
-    // only the original box is cropped back out for compositing.
+    // Approximates blur via downsample-then-upsample with bilinear smoothing
+    // (same core trick as applyPixelateRegion, just with smoothing enabled on
+    // both passes) instead of the canvas `filter: blur()` CSS property.
+    // `ctx.filter = blur()` was tried first and measured unreliable here as a
+    // drawImage source filter for decoded photo content — it visibly worked
+    // for synthetically-drawn shapes/text, but against a real photo it only
+    // ever produced a faint effect regardless of how large `radius` was, so
+    // "max strength" couldn't actually make small text illegible (see
+    // CLAUDE.md). This approach has no such dependency and reliably scales
+    // with `radius`, verified up to the slider's max on a real photo.
     const pad = Math.ceil(radius * 1.5);
     const sx = Math.max(0, Math.round(r.x - pad));
     const sy = Math.max(0, Math.round(r.y - pad));
@@ -1611,12 +1640,25 @@
     const sy2 = Math.min(redactCleanCanvas.height, Math.round(r.y + r.h + pad));
     const sw = sx2 - sx, sh = sy2 - sy;
     if (sw <= 0 || sh <= 0) return;
-    const off = document.createElement('canvas');
-    off.width = sw; off.height = sh;
-    const octx = off.getContext('2d');
-    octx.filter = `blur(${radius}px)`;
-    octx.drawImage(redactCleanCanvas, sx, sy, sw, sh, 0, 0, sw, sh);
-    ctx.drawImage(off, r.x - sx, r.y - sy, r.w, r.h, r.x, r.y, r.w, r.h);
+
+    const factor = Math.max(1, radius / 3);
+    const tinyW = Math.max(1, Math.round(sw / factor));
+    const tinyH = Math.max(1, Math.round(sh / factor));
+    const tiny = document.createElement('canvas');
+    tiny.width = tinyW; tiny.height = tinyH;
+    const tctx = tiny.getContext('2d');
+    tctx.imageSmoothingEnabled = true;
+    tctx.imageSmoothingQuality = 'high';
+    tctx.drawImage(redactCleanCanvas, sx, sy, sw, sh, 0, 0, tinyW, tinyH);
+
+    const back = document.createElement('canvas');
+    back.width = sw; back.height = sh;
+    const bctx = back.getContext('2d');
+    bctx.imageSmoothingEnabled = true;
+    bctx.imageSmoothingQuality = 'high';
+    bctx.drawImage(tiny, 0, 0, tinyW, tinyH, 0, 0, sw, sh);
+
+    ctx.drawImage(back, r.x - sx, r.y - sy, r.w, r.h, r.x, r.y, r.w, r.h);
   }
 
   function applyRedactRegion(ctx, r) {

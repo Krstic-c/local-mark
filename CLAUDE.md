@@ -32,7 +32,8 @@
   - 支持三种效果：纯色块 / 像素化马赛克 / 高斯模糊，在预览图上拖框新建区域，选中后四角把手可缩放、拖内部可移动，`Delete`/`Backspace` 或列表 ✕ 删除
   - **关键设计**：选中某个已有区域时，"打码类型"面板编辑的是**这个区域自身**；没有选中任何区域时，编辑的是"下一个新框的默认值"（`redactState.defaultType/defaultColor/...`）——`syncRedactControlsFromActive()` 负责让面板显示跟这个规则保持一致，新增/清空/加载新图片这些会重置选中状态的地方都要记得调用它（`clearRedactFile()` 里漏调过一次导致面板显示脏状态，已修）
   - 所有效果（`applySolidRegion`/`applyPixelateRegion`/`applyBlurRegion`）都只从 `redactCleanCanvas`（加载图片时创建的一份未处理原图）取样，每次渲染都是"清空重画+按顺序叠加所有区域"，因此移动/缩放/切换类型/撤销都不会累积上一次的效果，不用担心脏状态
-  - 像素化：用 canvas 内置缩放做降采样再最近邻放大（不用手写像素循环）；模糊：`ctx.filter = blur()` 时会向四周多采样一圈再裁剪回原框（`applyBlurRegion` 的 `pad`），避免纯粹在原框内取样时边缘因为滤镜取样越界而发白变淡
+  - 像素化：用 canvas 内置缩放做降采样再最近邻放大（不用手写像素循环）
+  - **模糊不要用 `ctx.filter = blur()`**（2026-09-14 踩过的坑）：最初 `applyBlurRegion` 用的是 `ctx.filter = blur(radius)` + `drawImage`（向四周多采样一圈再裁剪回原框，`pad` 就是干这个的），语法完全正确、也确实是 MDN 上的标准写法，但实测发现对**已解码的图片内容**（`drawImage(imgEl,...)` 画出来的 canvas）效果极弱——滑块拉到最大（167px）文字依旧清晰可辨，换成直接用 `fillText`/`fillRect` 画的合成内容测试却完全正常（会被完全洗白）。反复排查过是不是离屏 canvas 合成时机、`clip()`、坐标越界的问题，最后确认跟这些都无关，就是 `filter: blur()` 在这套环境下作为 `drawImage` 的滤镜、且源是"图片解码内容"时不可靠（原因未完全查清，怀疑是这套 Chromium 环境对图片来源画面的 filter 光栅化路径有 bug/限制）。**改为跟像素化一样的"缩小再放大+开启双线性平滑"技巧**（`applyBlurRegion` 内部：先把取样区域缩小到 `sw/factor × sh/factor`、`factor = radius/3`，`imageSmoothingEnabled=true` 放大回原尺寸），不依赖 CSS Filter Effects，实测从默认强度到滑块最大值都能正确、渐进地变强，直到完全洗白。**以后要做任何"模糊"效果，都优先用这个降采样技巧，不要指望 `ctx.filter = blur()` 对图片内容可靠**
   - 画布交互坐标：鼠标/触摸事件坐标是屏幕 CSS px，画布内部是原图分辨率 px，两者之间用 `getBoundingClientRect()` 算出的缩放比换算（`getRedactCanvasPos`/`redactDisplayScale`）——大图在预览区被等比缩小显示时这个换算是必须的，不能直接拿 `clientX/clientY` 当画布坐标用
   - 缩放只做了四个角的把手（拖角=对角锚点固定），没有做四条边中点的把手——四角已经能覆盖"改宽改高"的全部需求，边中点把手主要是锦上添花，为了减少代码量先跳过了
 
