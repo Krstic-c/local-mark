@@ -1,6 +1,6 @@
 // Bump CACHE_NAME whenever index.html or vendor/* changes materially,
 // otherwise returning visitors keep getting the stale cached version.
-const CACHE_NAME = 'localmark-v1';
+const CACHE_NAME = 'localmark-v2';
 const ASSETS = [
   './',
   './index.html',

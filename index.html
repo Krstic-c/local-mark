@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="本地图片/PDF 水印工具，零上传、可断网使用，所有处理均在浏览器本地内存中完成。">
+<meta name="description" content="本地图片/PDF 水印与打码工具，零上传、可断网使用，所有处理均在浏览器本地内存中完成。">
 <meta name="theme-color" content="#f5f5f7">
-<title>LocalMark - 本地图片/PDF水印工具</title>
+<title>LocalMark - 本地图片/PDF水印与打码工具</title>
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="apple-touch-icon" href="icon.svg">
 <link rel="manifest" href="manifest.json">
@@ -374,6 +374,76 @@
   }
   .toast.show { opacity: 1; transform: translateY(0); }
   .toast.error { background: var(--red); color: #fff; }
+
+  /* ---------- Redact tool (mosaic/blur/solid block) — independent from the
+     watermark tool above; only new selectors are added here, nothing existing
+     is modified. ---------- */
+  .tool-divider {
+    max-width: 1400px;
+    margin: 4px auto 0;
+    padding: 0 28px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    color: var(--text-secondary);
+    font-size: 12.5px;
+  }
+  .tool-divider::before, .tool-divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+  @media (max-width: 900px) { .tool-divider { padding: 0 16px; } }
+
+  #redactDropzone {
+    border: 1.5px dashed var(--border-strong);
+    border-radius: var(--radius-md);
+    padding: 26px 12px;
+    text-align: center;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: border-color .15s, background .15s, color .15s;
+    font-size: 13px;
+  }
+  #redactDropzone:hover { background: var(--bg); }
+  #redactDropzone:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--red-ring); border-color: var(--red); }
+  #redactDropzone.dragover { border-color: var(--red); border-style: solid; background: var(--red-soft); color: var(--red); }
+  #redactFileInput { display: none; }
+
+  #redactPreviewArea {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 18px;
+    min-height: 500px;
+    display: flex;
+    flex-direction: column;
+  }
+  #redactPreviewCanvasWrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-image:
+      linear-gradient(45deg, var(--track) 25%, transparent 25%),
+      linear-gradient(-45deg, var(--track) 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, var(--track) 75%),
+      linear-gradient(-45deg, transparent 75%, var(--track) 75%);
+    background-size: 20px 20px;
+    background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+    background-color: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: auto;
+    min-height: 420px;
+  }
+  #redactPreviewCanvas {
+    max-width: 100%;
+    max-height: 70vh;
+    border-radius: 8px;
+    box-shadow: var(--shadow-xs);
+    cursor: crosshair;
+    touch-action: none;
+    display: block;
+  }
+  #redactPreviewEmpty { color: var(--text-secondary); text-align: center; padding: 40px; font-size: 13px; }
 </style>
 </head>
 <body>
@@ -387,7 +457,7 @@
     </svg>
     <div>
       <h1>LocalMark</h1>
-      <span class="tag">本地图片/PDF水印工具</span>
+      <span class="tag">本地图片/PDF水印与打码工具</span>
     </div>
   </div>
   <div class="status-pill"><span class="dot"></span>本地处理 · <strong>可离线使用</strong></div>
@@ -547,6 +617,85 @@
     <div id="progressWrap">
       <div id="progressBar"><div id="progressBarFill"></div></div>
       <div id="progressLabel"></div>
+    </div>
+  </div>
+</div>
+
+<div class="tool-divider"><span>局部打码（马赛克 / 模糊 / 纯色块，与上方水印工具相互独立，一次处理一张图片）</span></div>
+
+<div class="layout" id="redactLayout">
+  <!-- LEFT PANEL -->
+  <div id="redactLeftPanel">
+
+    <div class="panel">
+      <div class="panel-header">
+        <h2>上传图片</h2>
+      </div>
+      <div id="redactDropzone" role="button" tabindex="0" aria-label="点击或拖拽上传一张图片进行打码">
+        拖拽图片 (JPG/PNG/WEBP) 到此处<br>或点击选择文件（一次仅处理一张，重新上传会替换当前图片）
+      </div>
+      <input type="file" id="redactFileInput" accept="image/jpeg,image/png,image/webp">
+      <div id="redactFileInfo" style="display:none; margin-top:10px;">
+        <div class="file-item">
+          <span class="ftag">IMG</span><span class="fname" id="redactFileName"></span>
+          <span class="fremove" id="redactFileRemove">✕</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>打码类型</h2>
+      <div class="mode-toggle">
+        <button id="redactTypeSolid" class="active" aria-pressed="true">纯色块</button>
+        <button id="redactTypePixelate" aria-pressed="false">马赛克</button>
+        <button id="redactTypeBlur" aria-pressed="false">模糊</button>
+      </div>
+
+      <div id="redactSolidFields" style="margin-top:12px;">
+        <div class="field color-row">
+          <div style="flex:1;"><label>遮挡颜色</label></div>
+          <input type="color" id="redactColor" value="#000000">
+        </div>
+      </div>
+
+      <div id="redactPixelateFields" style="margin-top:12px; display:none;">
+        <div class="field">
+          <div class="row-value"><label>马赛克粒度</label><span id="redactBlockSizeVal">14px</span></div>
+          <input type="range" id="redactBlockSize" min="4" max="60" value="14">
+        </div>
+      </div>
+
+      <div id="redactBlurFields" style="margin-top:12px; display:none;">
+        <div class="field">
+          <div class="row-value"><label>模糊强度</label><span id="redactBlurRadiusVal">18px</span></div>
+          <input type="range" id="redactBlurRadius" min="4" max="60" value="18">
+        </div>
+      </div>
+
+      <div class="field" style="margin-top:4px; margin-bottom:0;">
+        <label style="margin-bottom:0;">在右侧预览图上直接拖拽画框，即可添加一个打码区域；点击已添加的区域可重新选中、切换类型或拖动四角调整大小；选中后按 Delete/Backspace 或在下方列表点击 ✕ 可删除。</label>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <h2>已添加区域（<span id="redactRegionCount">0</span>）</h2>
+        <button class="btn-text" id="redactClearRegions" style="display:none;">清空全部</button>
+      </div>
+      <div id="redactRegionList"></div>
+      <div id="redactRegionEmpty" style="color:var(--text-secondary); font-size:12.5px;">还没有添加打码区域</div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div id="redactPreviewArea">
+    <div id="redactPreviewCanvasWrap">
+      <div id="redactPreviewEmpty">请先在左侧上传一张图片</div>
+      <canvas id="redactPreviewCanvas" style="display:none;"></canvas>
+    </div>
+    <div class="export-bar">
+      <button class="btn btn-accent btn-block" id="redactDownload">下载打码后的图片</button>
     </div>
   </div>
 </div>
@@ -1306,6 +1455,495 @@
     });
   }
 
+  // ==================================================================
+  // Redact tool (mosaic / blur / solid-color block over a hand-drawn box)
+  // — a separate feature from the watermark tool above. Independent state
+  // (`redactState`), independent DOM ids (`redact*` prefix), never reads or
+  // writes `state`/`wm`. v1 scope: one image at a time, images only (no PDF,
+  // no batch) — see CLAUDE.md/CHANGELOG for the rationale.
+  // ==================================================================
+
+  const redactState = {
+    fileName: null,
+    fileMime: null,
+    regions: [],       // {id, x, y, w, h, type:'solid'|'pixelate'|'blur', color, blockSize, blurRadius} — all in source-image pixel space
+    selectedId: null,
+    defaultType: 'solid',
+    defaultColor: '#000000',
+    defaultBlockSize: 14,
+    defaultBlurRadius: 18
+  };
+  let redactImgEl = null;        // loaded Image, natural resolution
+  let redactCleanCanvas = null;  // offscreen canvas holding the untouched image — every effect always samples from here so overlapping/edited regions never compound
+
+  // ---------- Active config: editing controls affect the selected region if
+  // one exists, otherwise they set the defaults used for the *next* new box ----------
+  function getSelectedRedactRegion() {
+    return redactState.regions.find(r => r.id === redactState.selectedId) || null;
+  }
+
+  function syncRedactControlsFromActive() {
+    const sel = getSelectedRedactRegion();
+    const type = sel ? sel.type : redactState.defaultType;
+    const color = sel ? sel.color : redactState.defaultColor;
+    const blockSize = sel ? sel.blockSize : redactState.defaultBlockSize;
+    const blurRadius = sel ? sel.blurRadius : redactState.defaultBlurRadius;
+
+    $('redactTypeSolid').classList.toggle('active', type === 'solid');
+    $('redactTypeSolid').setAttribute('aria-pressed', String(type === 'solid'));
+    $('redactTypePixelate').classList.toggle('active', type === 'pixelate');
+    $('redactTypePixelate').setAttribute('aria-pressed', String(type === 'pixelate'));
+    $('redactTypeBlur').classList.toggle('active', type === 'blur');
+    $('redactTypeBlur').setAttribute('aria-pressed', String(type === 'blur'));
+    $('redactSolidFields').style.display = type === 'solid' ? '' : 'none';
+    $('redactPixelateFields').style.display = type === 'pixelate' ? '' : 'none';
+    $('redactBlurFields').style.display = type === 'blur' ? '' : 'none';
+
+    $('redactColor').value = color;
+    $('redactBlockSize').value = blockSize;
+    $('redactBlockSizeVal').textContent = blockSize + 'px';
+    $('redactBlurRadius').value = blurRadius;
+    $('redactBlurRadiusVal').textContent = blurRadius + 'px';
+  }
+
+  function setActiveRedactType(type) {
+    const sel = getSelectedRedactRegion();
+    if (sel) sel.type = type; else redactState.defaultType = type;
+    syncRedactControlsFromActive();
+    renderRedactRegionList();
+    renderRedactPreview();
+  }
+  function setActiveRedactColor(color) {
+    const sel = getSelectedRedactRegion();
+    if (sel) sel.color = color; else redactState.defaultColor = color;
+    renderRedactPreview();
+  }
+  function setActiveRedactBlockSize(v) {
+    const sel = getSelectedRedactRegion();
+    if (sel) sel.blockSize = v; else redactState.defaultBlockSize = v;
+    $('redactBlockSizeVal').textContent = v + 'px';
+    renderRedactPreview();
+  }
+  function setActiveRedactBlurRadius(v) {
+    const sel = getSelectedRedactRegion();
+    if (sel) sel.blurRadius = v; else redactState.defaultBlurRadius = v;
+    $('redactBlurRadiusVal').textContent = v + 'px';
+    renderRedactPreview();
+  }
+
+  // ---------- File loading (single image, replaces whatever was loaded before) ----------
+  function loadRedactFile(file) {
+    const isImg = file.type === 'image/jpeg' || file.type === 'image/png' || file.type === 'image/webp';
+    if (!isImg) { showToast('打码工具目前仅支持 JPG/PNG/WEBP 图片', 'error'); return; }
+    const reader = new FileReader();
+    reader.onerror = () => showToast('图片读取失败', 'error');
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onerror = () => showToast('图片解码失败', 'error');
+      img.onload = () => {
+        redactImgEl = img;
+        redactCleanCanvas = document.createElement('canvas');
+        redactCleanCanvas.width = img.naturalWidth;
+        redactCleanCanvas.height = img.naturalHeight;
+        redactCleanCanvas.getContext('2d').drawImage(img, 0, 0);
+        redactState.fileName = file.name;
+        redactState.fileMime = file.type;
+        redactState.regions = [];
+        redactState.selectedId = null;
+        $('redactFileName').textContent = file.name;
+        $('redactFileInfo').style.display = '';
+        syncRedactControlsFromActive();
+        renderRedactRegionList();
+        renderRedactPreview();
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function clearRedactFile() {
+    redactImgEl = null;
+    redactCleanCanvas = null;
+    redactState.fileName = null;
+    redactState.fileMime = null;
+    redactState.regions = [];
+    redactState.selectedId = null;
+    $('redactFileInfo').style.display = 'none';
+    $('redactFileInput').value = '';
+    syncRedactControlsFromActive();
+    renderRedactRegionList();
+    renderRedactPreview();
+  }
+
+  // ---------- Effect appliers — always sample from redactCleanCanvas (never
+  // from the display canvas), so re-rendering after moving/resizing/deleting
+  // a region is always exact instead of compounding previous draws ----------
+  function applySolidRegion(ctx, r) {
+    ctx.save();
+    ctx.fillStyle = r.color;
+    ctx.fillRect(r.x, r.y, r.w, r.h);
+    ctx.restore();
+  }
+
+  function applyPixelateRegion(ctx, r) {
+    const cols = Math.max(1, Math.round(r.w / r.blockSize));
+    const rows = Math.max(1, Math.round(r.h / r.blockSize));
+    const tiny = document.createElement('canvas');
+    tiny.width = cols; tiny.height = rows;
+    const tctx = tiny.getContext('2d');
+    tctx.imageSmoothingEnabled = true;
+    tctx.drawImage(redactCleanCanvas, r.x, r.y, r.w, r.h, 0, 0, cols, rows);
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(tiny, 0, 0, cols, rows, r.x, r.y, r.w, r.h);
+    ctx.restore();
+  }
+
+  function applyBlurRegion(ctx, r) {
+    const radius = r.blurRadius;
+    // Sample a padded region around the box (clamped to image bounds) so the
+    // blur draws on real surrounding content instead of fading at the edges;
+    // only the original box is cropped back out for compositing.
+    const pad = Math.ceil(radius * 1.5);
+    const sx = Math.max(0, Math.round(r.x - pad));
+    const sy = Math.max(0, Math.round(r.y - pad));
+    const sx2 = Math.min(redactCleanCanvas.width, Math.round(r.x + r.w + pad));
+    const sy2 = Math.min(redactCleanCanvas.height, Math.round(r.y + r.h + pad));
+    const sw = sx2 - sx, sh = sy2 - sy;
+    if (sw <= 0 || sh <= 0) return;
+    const off = document.createElement('canvas');
+    off.width = sw; off.height = sh;
+    const octx = off.getContext('2d');
+    octx.filter = `blur(${radius}px)`;
+    octx.drawImage(redactCleanCanvas, sx, sy, sw, sh, 0, 0, sw, sh);
+    ctx.drawImage(off, r.x - sx, r.y - sy, r.w, r.h, r.x, r.y, r.w, r.h);
+  }
+
+  function applyRedactRegion(ctx, r) {
+    if (r.type === 'solid') applySolidRegion(ctx, r);
+    else if (r.type === 'pixelate') applyPixelateRegion(ctx, r);
+    else if (r.type === 'blur') applyBlurRegion(ctx, r);
+  }
+
+  // ---------- Rendering — always redraws from the clean source, so move/
+  // resize/undo are exact rather than compounding previous frames ----------
+  const REDACT_HANDLE_SIZE = 9; // in CSS px; scaled by the current display ratio so handles look the same size regardless of image resolution/zoom
+
+  function redactDisplayScale() {
+    const canvas = $('redactPreviewCanvas');
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width) return 1;
+    return canvas.width / rect.width;
+  }
+
+  function redactHandlePositions(r) {
+    return [
+      { key: 'nw', x: r.x, y: r.y },
+      { key: 'ne', x: r.x + r.w, y: r.y },
+      { key: 'sw', x: r.x, y: r.y + r.h },
+      { key: 'se', x: r.x + r.w, y: r.y + r.h }
+    ];
+  }
+
+  function normalizedRect(x1, y1, x2, y2) {
+    return { x: Math.min(x1, x2), y: Math.min(y1, y2), w: Math.abs(x2 - x1), h: Math.abs(y2 - y1) };
+  }
+
+  function drawRedactSelection(ctx, r) {
+    const scale = redactDisplayScale();
+    const hs = REDACT_HANDLE_SIZE * scale;
+    ctx.save();
+    ctx.strokeStyle = '#b23a2e';
+    ctx.lineWidth = Math.max(1, 2 * scale);
+    ctx.setLineDash([]);
+    ctx.strokeRect(r.x, r.y, r.w, r.h);
+    ctx.fillStyle = '#b23a2e';
+    redactHandlePositions(r).forEach(p => { ctx.fillRect(p.x - hs / 2, p.y - hs / 2, hs, hs); });
+    ctx.restore();
+  }
+
+  function renderRedactPreview() {
+    const canvas = $('redactPreviewCanvas');
+    const empty = $('redactPreviewEmpty');
+    if (!redactImgEl) {
+      canvas.style.display = 'none';
+      empty.style.display = '';
+      return;
+    }
+    empty.style.display = 'none';
+    canvas.style.display = '';
+    canvas.width = redactImgEl.naturalWidth;
+    canvas.height = redactImgEl.naturalHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(redactCleanCanvas, 0, 0);
+    redactState.regions.forEach(r => applyRedactRegion(ctx, r));
+
+    if (redactDrag && redactDrag.mode === 'create') {
+      const b = normalizedRect(redactDrag.startX, redactDrag.startY, redactDrag.curX, redactDrag.curY);
+      const scale = redactDisplayScale();
+      ctx.save();
+      ctx.strokeStyle = 'rgba(178,58,46,0.9)';
+      ctx.lineWidth = Math.max(1, 2 * scale);
+      ctx.setLineDash([6 * scale, 4 * scale]);
+      ctx.strokeRect(b.x, b.y, b.w, b.h);
+      ctx.restore();
+    }
+
+    const sel = getSelectedRedactRegion();
+    if (sel) drawRedactSelection(ctx, sel);
+  }
+
+  // ---------- Pointer interaction ----------
+  let redactDrag = null; // { mode: 'create'|'move'|'resize', ... } — see pointerdown handler
+  let redactRafPending = false;
+  function scheduleRedactRender() {
+    if (redactRafPending) return;
+    redactRafPending = true;
+    requestAnimationFrame(() => { redactRafPending = false; renderRedactPreview(); });
+  }
+
+  function getRedactCanvasPos(evt) {
+    const canvas = $('redactPreviewCanvas');
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return {
+      x: Math.max(0, Math.min(canvas.width, (evt.clientX - rect.left) * scaleX)),
+      y: Math.max(0, Math.min(canvas.height, (evt.clientY - rect.top) * scaleY))
+    };
+  }
+
+  function hitTestHandle(r, pos) {
+    const scale = redactDisplayScale();
+    const tol = (REDACT_HANDLE_SIZE * scale) * 0.9;
+    return redactHandlePositions(r).find(p => Math.abs(p.x - pos.x) <= tol && Math.abs(p.y - pos.y) <= tol) || null;
+  }
+
+  function hitTestRegion(pos) {
+    for (let i = redactState.regions.length - 1; i >= 0; i--) { // topmost (last-drawn) wins on overlap
+      const r = redactState.regions[i];
+      if (pos.x >= r.x && pos.x <= r.x + r.w && pos.y >= r.y && pos.y <= r.y + r.h) return r;
+    }
+    return null;
+  }
+
+  function oppositeCorner(r, handleKey) {
+    const opp = { nw: 'se', ne: 'sw', sw: 'ne', se: 'nw' }[handleKey];
+    const p = redactHandlePositions(r).find(h => h.key === opp);
+    return { x: p.x, y: p.y };
+  }
+
+  function selectRedactRegion(id) {
+    redactState.selectedId = id;
+    syncRedactControlsFromActive();
+    renderRedactRegionList();
+    renderRedactPreview();
+  }
+
+  function removeRedactRegion(id) {
+    redactState.regions = redactState.regions.filter(r => r.id !== id);
+    if (redactState.selectedId === id) redactState.selectedId = null;
+    syncRedactControlsFromActive();
+    renderRedactRegionList();
+    renderRedactPreview();
+  }
+
+  function clearRedactRegions() {
+    redactState.regions = [];
+    redactState.selectedId = null;
+    syncRedactControlsFromActive();
+    renderRedactRegionList();
+    renderRedactPreview();
+  }
+
+  const REDACT_MIN_REGION_SIZE = 6; // px in image space — smaller than this is treated as an accidental click, not a real box
+
+  function bindRedactCanvasEvents() {
+    const canvas = $('redactPreviewCanvas');
+
+    canvas.addEventListener('pointerdown', (e) => {
+      if (!redactImgEl) return;
+      const pos = getRedactCanvasPos(e);
+      const sel = getSelectedRedactRegion();
+
+      if (sel) {
+        const handle = hitTestHandle(sel, pos);
+        if (handle) {
+          redactDrag = { mode: 'resize', region: sel, anchor: oppositeCorner(sel, handle.key) };
+          canvas.setPointerCapture(e.pointerId);
+          return;
+        }
+        if (pos.x >= sel.x && pos.x <= sel.x + sel.w && pos.y >= sel.y && pos.y <= sel.y + sel.h) {
+          redactDrag = { mode: 'move', region: sel, offsetX: pos.x - sel.x, offsetY: pos.y - sel.y };
+          canvas.setPointerCapture(e.pointerId);
+          return;
+        }
+      }
+
+      const hit = hitTestRegion(pos);
+      if (hit) {
+        selectRedactRegion(hit.id);
+        redactDrag = { mode: 'move', region: hit, offsetX: pos.x - hit.x, offsetY: pos.y - hit.y };
+        canvas.setPointerCapture(e.pointerId);
+        return;
+      }
+
+      redactState.selectedId = null;
+      redactDrag = { mode: 'create', startX: pos.x, startY: pos.y, curX: pos.x, curY: pos.y };
+      canvas.setPointerCapture(e.pointerId);
+      syncRedactControlsFromActive();
+      renderRedactRegionList();
+    });
+
+    canvas.addEventListener('pointermove', (e) => {
+      const pos = getRedactCanvasPos(e);
+      if (!redactDrag) {
+        // Not dragging — just give cursor feedback for what a click would do.
+        const sel = getSelectedRedactRegion();
+        let cursor = 'crosshair';
+        if (sel) {
+          const handle = hitTestHandle(sel, pos);
+          if (handle) cursor = (handle.key === 'nw' || handle.key === 'se') ? 'nwse-resize' : 'nesw-resize';
+          else if (pos.x >= sel.x && pos.x <= sel.x + sel.w && pos.y >= sel.y && pos.y <= sel.y + sel.h) cursor = 'move';
+        }
+        canvas.style.cursor = cursor;
+        return;
+      }
+      if (redactDrag.mode === 'create') {
+        redactDrag.curX = pos.x; redactDrag.curY = pos.y;
+      } else if (redactDrag.mode === 'move') {
+        const r = redactDrag.region;
+        r.x = Math.max(0, Math.min(canvas.width - r.w, pos.x - redactDrag.offsetX));
+        r.y = Math.max(0, Math.min(canvas.height - r.h, pos.y - redactDrag.offsetY));
+      } else if (redactDrag.mode === 'resize') {
+        Object.assign(redactDrag.region, normalizedRect(redactDrag.anchor.x, redactDrag.anchor.y, pos.x, pos.y));
+      }
+      scheduleRedactRender();
+    });
+
+    function endDrag(e) {
+      if (!redactDrag) return;
+      if (redactDrag.mode === 'create') {
+        const b = normalizedRect(redactDrag.startX, redactDrag.startY, redactDrag.curX, redactDrag.curY);
+        if (b.w >= REDACT_MIN_REGION_SIZE && b.h >= REDACT_MIN_REGION_SIZE) {
+          const region = {
+            id: uid(),
+            x: b.x, y: b.y, w: b.w, h: b.h,
+            type: redactState.defaultType,
+            color: redactState.defaultColor,
+            blockSize: redactState.defaultBlockSize,
+            blurRadius: redactState.defaultBlurRadius
+          };
+          redactState.regions.push(region);
+          redactState.selectedId = region.id;
+        }
+      }
+      redactDrag = null;
+      syncRedactControlsFromActive();
+      renderRedactRegionList();
+      renderRedactPreview();
+      try { canvas.releasePointerCapture(e.pointerId); } catch (err) {}
+    }
+    canvas.addEventListener('pointerup', endDrag);
+    canvas.addEventListener('pointercancel', endDrag);
+
+    // Delete/Backspace removes the selected region, but not while a text
+    // input/textarea/select anywhere on the page has focus (so it doesn't
+    // fight normal editing, e.g. the watermark text field above).
+    document.addEventListener('keydown', (e) => {
+      if (!redactState.selectedId) return;
+      const tag = (document.activeElement && document.activeElement.tagName) || '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        removeRedactRegion(redactState.selectedId);
+      }
+    });
+  }
+
+  // ---------- Region list panel ----------
+  function renderRedactRegionList() {
+    const wrap = $('redactRegionList');
+    wrap.innerHTML = '';
+    $('redactRegionCount').textContent = redactState.regions.length;
+    $('redactClearRegions').style.display = redactState.regions.length ? '' : 'none';
+    $('redactRegionEmpty').style.display = redactState.regions.length ? 'none' : '';
+    redactState.regions.forEach((r, i) => {
+      const div = document.createElement('div');
+      div.className = 'file-item' + (r.id === redactState.selectedId ? ' active' : '');
+      const typeLabel = r.type === 'solid' ? '纯色' : (r.type === 'pixelate' ? '马赛克' : '模糊');
+      div.innerHTML = `<span class="ftag">${typeLabel}</span><span class="fname"></span><span class="fremove">✕</span>`;
+      div.querySelector('.fname').textContent = `区域 ${i + 1}（${Math.round(r.w)}×${Math.round(r.h)}px）`;
+      div.addEventListener('click', (e) => {
+        if (e.target.classList.contains('fremove')) return;
+        selectRedactRegion(r.id);
+      });
+      div.querySelector('.fremove').addEventListener('click', (e) => {
+        e.stopPropagation();
+        removeRedactRegion(r.id);
+      });
+      wrap.appendChild(div);
+    });
+  }
+
+  // ---------- Export ----------
+  function redactedFilename(name) {
+    const dot = name.lastIndexOf('.');
+    if (dot === -1) return name + '_打码';
+    return name.slice(0, dot) + '_打码' + name.slice(dot);
+  }
+
+  async function downloadRedacted() {
+    if (!redactImgEl) { showToast('请先上传一张图片', 'error'); return; }
+    const canvas = document.createElement('canvas');
+    canvas.width = redactCleanCanvas.width;
+    canvas.height = redactCleanCanvas.height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(redactCleanCanvas, 0, 0);
+    redactState.regions.forEach(r => applyRedactRegion(ctx, r));
+    const mime = redactState.fileMime === 'image/jpeg' ? 'image/jpeg'
+      : (redactState.fileMime === 'image/webp' ? 'image/webp' : 'image/png');
+    const blob = await canvasToBlob(canvas, mime, undefined);
+    triggerDownload(blob, redactedFilename(redactState.fileName));
+    showToast('打码图片已导出');
+  }
+
+  // ---------- Event bindings ----------
+  function bindRedactEvents() {
+    const dz = $('redactDropzone');
+    dz.addEventListener('click', () => $('redactFileInput').click());
+    dz.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('redactFileInput').click(); }
+    });
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+    dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+    dz.addEventListener('drop', e => {
+      e.preventDefault();
+      dz.classList.remove('dragover');
+      if (e.dataTransfer.files[0]) loadRedactFile(e.dataTransfer.files[0]);
+    });
+    $('redactFileInput').addEventListener('change', e => {
+      if (e.target.files[0]) loadRedactFile(e.target.files[0]);
+      e.target.value = '';
+    });
+    $('redactFileRemove').addEventListener('click', clearRedactFile);
+
+    $('redactTypeSolid').addEventListener('click', () => setActiveRedactType('solid'));
+    $('redactTypePixelate').addEventListener('click', () => setActiveRedactType('pixelate'));
+    $('redactTypeBlur').addEventListener('click', () => setActiveRedactType('blur'));
+    $('redactColor').addEventListener('input', e => setActiveRedactColor(e.target.value));
+    $('redactBlockSize').addEventListener('input', e => setActiveRedactBlockSize(parseInt(e.target.value, 10)));
+    $('redactBlurRadius').addEventListener('input', e => setActiveRedactBlurRadius(parseInt(e.target.value, 10)));
+
+    $('redactClearRegions').addEventListener('click', clearRedactRegions);
+    $('redactDownload').addEventListener('click', () => {
+      downloadRedacted().catch(err => { console.error(err); showToast('导出失败：' + err.message, 'error'); });
+    });
+
+    bindRedactCanvasEvents();
+  }
+
   // ---------- Offline support ----------
   function registerServiceWorker() {
     if (!('serviceWorker' in navigator)) return;
@@ -1322,6 +1960,8 @@
     bindEvents();
     renderPresetList();
     renderPreview();
+    bindRedactEvents();
+    renderRedactPreview();
     registerServiceWorker();
   }
 
